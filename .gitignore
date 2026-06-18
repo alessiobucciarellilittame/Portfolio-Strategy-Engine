@@ -1,0 +1,20 @@
+# Ambiente virtuale Python — NON va pubblicato (pesante e specifico del Mac)
+.venv/
+venv/
+
+# Cache e file compilati di Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# File di sistema macOS
+.DS_Store
+
+# Cronologia R (file sparso, non serve)
+.Rhistory
+docs/.Rhistory
+
+# IMPORTANTE: la cartella cache/ NON è ignorata.
+# I file cache/*.parquet servono all'app pubblicata per avere i dati senza
+# dipendere da Yahoo Finance. Devono essere committati.

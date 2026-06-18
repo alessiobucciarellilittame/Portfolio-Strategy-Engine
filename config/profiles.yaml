@@ -1,0 +1,100 @@
+# Profili cliente per il Portfolio Strategy Engine
+#
+# FILOSOFIA (post core-satellite):
+#   Il TETTO DI VOLATILITA' e' la leva principale che definisce il rischio.
+#   L'obiettivo e' "massimizza rendimento atteso con vol <= tetto".
+#   I tetti per classe sono GUARDRAIL di sicurezza, non la leva primaria.
+#   L'azionario NON ha tetto rigido (tranne conservativo): e' il tetto di vol
+#   a determinare naturalmente quanta azione tenere.
+#
+# Ogni profilo definisce:
+#   - vol_ceiling: volatilita' annualizzata target del CORE (asset tradizionali)
+#   - max_weight: peso massimo per singolo asset (guardrail)
+#   - objective: funzione obiettivo
+#   - group_limits: guardrail per classe {classe: [min, max]}
+#     Le cripto NON entrano nell'ottimizzatore del core. Il tetto crypto qui
+#     definisce la quota satellite massima usata da build_core_satellite().
+#     profile_to_constraints() esclude automaticamente il vincolo crypto.
+#
+# Calibrazione vol target (su stime Bayes-Stein/Ledoit-Wolf, universo 10 asset):
+#   conservativo  5% -> ~21% equity, ~67% bond, ~12% commodity
+#   moderato      7% -> ~38% equity, ~50% bond, ~12% commodity
+#   bilanciato   10% -> ~58% equity, ~30% bond, ~12% commodity
+#   dinamico     12% -> ~72% equity, ~16% bond, ~12% commodity
+#   aggressivo   14% -> ~85% equity,  ~3% bond, ~12% commodity
+
+profiles:
+  conservativo:
+    description: "Preservazione del capitale, rischio molto basso"
+    vol_ceiling: 0.05        # 5%
+    max_weight: 0.30
+    objective: "max_return"
+    group_limits:
+      equity: [0.0, 0.30]   # guardrail conservativo
+      bond: [0.30, 1.0]     # almeno 30% bond
+      commodity: [0.0, 0.12] # tetto commodity
+      crypto: [0.0, 0.0]    # zero crypto
+
+  moderato:
+    description: "Crescita contenuta con volatilita' limitata"
+    vol_ceiling: 0.07        # 7%
+    max_weight: 0.30
+    objective: "max_return"
+    group_limits:
+      equity: [0.0, 1.0]    # vol ceiling guida l'azionario
+      bond: [0.0, 1.0]
+      commodity: [0.0, 0.12] # tetto commodity
+      crypto: [0.0, 0.02]   # max 2%
+
+  bilanciato:
+    description: "Bilanciamento tra crescita e protezione"
+    vol_ceiling: 0.10        # 10%
+    max_weight: 0.30
+    objective: "max_return"
+    group_limits:
+      equity: [0.0, 1.0]    # vol ceiling guida l'azionario
+      bond: [0.0, 1.0]
+      commodity: [0.0, 0.12] # tetto commodity
+      crypto: [0.0, 0.05]   # max 5%
+
+  dinamico:
+    description: "Crescita con rischio significativo"
+    vol_ceiling: 0.12        # 12%
+    max_weight: 0.30
+    objective: "max_return"
+    group_limits:
+      equity: [0.0, 1.0]    # vol ceiling guida l'azionario
+      bond: [0.0, 1.0]
+      commodity: [0.0, 0.12] # tetto commodity
+      crypto: [0.0, 0.10]   # max 10%
+
+  aggressivo:
+    description: "Massima crescita, tolleranza alta alla volatilita'"
+    vol_ceiling: 0.14         # 14% - vicino al massimo raggiungibile con tradizionali
+    max_weight: 0.30
+    objective: "max_return"
+    group_limits:
+      equity: [0.0, 1.0]    # vol ceiling guida l'azionario
+      bond: [0.0, 1.0]
+      commodity: [0.0, 0.12] # tetto commodity
+      crypto: [0.0, 0.15]   # max 15%
+
+
+# Aggiustamento per orizzonte temporale
+# L'orizzonte modifica il tetto di volatilita' effettivo.
+#
+# Regola: vol_effettiva = vol_ceiling * fattore_orizzonte
+#   - breve  (< 3 anni):  fattore = 0.70  (riduzione 30%)
+#   - medio  (3-7 anni):  fattore = 1.00  (invariato)
+#   - lungo  (> 7 anni):  fattore = 1.15  (leggero incremento 15%)
+
+horizon_adjustments:
+  short:
+    max_years: 3
+    vol_factor: 0.70
+  medium:
+    max_years: 7
+    vol_factor: 1.00
+  long:
+    max_years: 999
+    vol_factor: 1.15

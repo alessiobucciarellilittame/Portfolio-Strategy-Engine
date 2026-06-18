@@ -1,0 +1,50 @@
+# Configurazione costi reali e fiscalita' (Fase 8)
+#
+# OGNI valore e' un parametro configurabile. Nessun numero hardcoded nel codice.
+# Le aliquote fiscali sono INDICATIVE e vanno verificate con un professionista.
+
+# 8.1 — Costi di transazione per asset class
+# Spread bid-ask tipico in bps + commissioni broker
+transaction_costs:
+  # Spread bid-ask tipico per classe (bps)
+  spread_bps:
+    equity: 5
+    bond: 8
+    commodity: 10
+    crypto: 30
+
+  # Commissioni broker (percentuale sul controvalore)
+  broker_commission_pct: 0.10   # 0.10% = 10 bps
+  broker_minimum_eur: 1.50      # Minimo per ordine in EUR
+
+# 8.2 — Fiscalita' italiana (INDICATIVA)
+# ATTENZIONE: queste aliquote sono indicative per un investitore retail italiano.
+# NON costituiscono consulenza fiscale. Verificare per l'anno corrente.
+tax:
+  # Aliquota capital gain su ETF armonizzati / azioni (redditi di capitale)
+  capital_gain_rate: 0.26
+
+  # Aliquota agevolata per titoli di Stato italiani e white-list / sovranazionali
+  govt_bond_rate: 0.125
+
+  # Quota agevolata per strumento/classe: percentuale del portafoglio obbligazionario
+  # che beneficia dell'aliquota ridotta al 12.5%.
+  # Per ETF obbligazionari governativi EUR si stima ~80% in titoli white-list.
+  govt_quota_by_class:
+    bond: 0.80      # 80% di un ETF bond govtivo e' white-list -> 12.5%
+    equity: 0.0
+    commodity: 0.0
+    crypto: 0.0
+
+  # Cripto: aliquota configurabile.
+  # NOTA: la tassazione cripto in Italia e' in evoluzione (L. 197/2022, successive
+  # modifiche). Il valore qui e' indicativo: verificare per l'anno corrente.
+  crypto_rate: 0.26
+
+  # Imposta di bollo titoli (annuale sul controvalore del deposito)
+  bollo_rate: 0.002   # 0.2% annuo
+
+  # Asimmetria ETF: le plusvalenze da ETF armonizzati sono "redditi di capitale"
+  # e NON compensabili con minusvalenze pregresse ("redditi diversi").
+  # Se true, le plus da ETF non riducono il saldo minusvalenze.
+  etf_no_offset: true

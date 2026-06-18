@@ -1,0 +1,408 @@
+"""
+Dashboard Streamlit — Portfolio Strategy Engine (Fase 9).
+
+Interfaccia web che avvolge il motore esistente (Fasi 1-8).
+Lancia con: streamlit run app.py
+"""
+
+import logging
+import streamlit as st
+import numpy as np
+import pandas as pd
+
+from src.dashboard_data import (
+    load_data,
+    estimate_params,
+    build_portfolio,
+    build_profile_comparison,
+    can_render_pdf,
+    generate_pdf_bytes,
+    DashboardResult,
+    ProfileComparison,
+    PROFILE_ORDER,
+)
+from src.profiles import load_profiles
+
+logging.basicConfig(level=logging.WARNING)
+
+st.set_page_config(
+    page_title="Portfolio Strategy Engine",
+    page_icon="📊",
+    layout="wide",
+)
+
+# ============================================================
+# Disclaimer (sempre visibile)
+# ============================================================
+
+st.markdown(
+    '<div style="background:#FFF3E0;border-left:4px solid #FF9800;padding:10px 16px;'
+    'margin-bottom:16px;font-size:0.9em;">'
+    "<b>Strumento illustrativo.</b> NON e' consulenza finanziaria. "
+    "Le attese di rendimento sono stime basate su dati storici, non garanzie. "
+    "La fiscalita' e' indicativa e va verificata con un professionista."
+    "</div>",
+    unsafe_allow_html=True,
+)
+
+st.title("Portfolio Strategy Engine")
+
+# ============================================================
+# Sidebar: input
+# ============================================================
+
+with st.sidebar:
+    st.header("Parametri")
+
+    profiles_cfg = load_profiles()
+    profile_name = st.selectbox(
+        "Profilo investitore",
+        options=list(PROFILE_ORDER),
+        index=2,  # bilanciato
+        format_func=lambda x: x.capitalize(),
+    )
+
+    horizon_years = st.slider("Orizzonte temporale (anni)", 1, 20, 5)
+
+    # Cripto
+    max_crypto = profiles_cfg[profile_name].group_limits.get("crypto", (0, 0))[1]
+    if max_crypto > 0:
+        crypto_weight = st.slider(
+            "Quota satellite cripto",
+            min_value=0.0,
+            max_value=float(max_crypto),
+            value=0.0,
+            step=0.01,
+            format="%.0f%%",
+            help=f"Tetto profilo: {max_crypto:.0%}",
+        )
+        satellite_mode = st.radio(
+            "Composizione satellite",
+            ["btc", "btc_eth"],
+            format_func=lambda x: "Solo BTC" if x == "btc" else "BTC + ETH (50/50)",
+        )
+    else:
+        crypto_weight = 0.0
+        satellite_mode = "btc"
+        st.info("Profilo conservativo: cripto non disponibile.")
+
+    # Strategia
+    strategy_name = st.selectbox(
+        "Strategia",
+        ["buy_and_hold", "periodic", "threshold"],
+        index=1,
+        format_func=lambda x: {
+            "buy_and_hold": "Buy & Hold",
+            "periodic": "Ribilanciamento periodico",
+            "threshold": "Ribilanciamento a soglia",
+        }[x],
+    )
+    if strategy_name == "periodic":
+        strategy_freq = st.selectbox(
+            "Frequenza", ["monthly", "quarterly", "annual"],
+            index=1,
+            format_func=lambda x: {"monthly": "Mensile", "quarterly": "Trimestrale", "annual": "Annuale"}[x],
+        )
+    else:
+        strategy_freq = "quarterly"
+
+    capital_eur = st.number_input(
+        "Capitale di riferimento (EUR)",
+        min_value=1_000,
+        max_value=10_000_000,
+        value=100_000,
+        step=10_000,
+        help="Per il calcolo di costi e tasse (commissioni minime, bollo).",
+    )
+
+    st.divider()
+    refresh_data = st.checkbox("Aggiorna dati da Yahoo Finance", value=False)
+
+
+# ============================================================
+# Caricamento dati e stima parametri (cached)
+# ============================================================
+
+@st.cache_data(show_spinner="Caricamento dati dalla cache...")
+def _load_data(refresh: bool):
+    return load_data(refresh=refresh)
+
+
+@st.cache_data(show_spinner="Stima parametri mu/Sigma...")
+def _estimate_params(_returns_hash, returns):
+    return estimate_params(returns)
+
+
+try:
+    bundle = _load_data(refresh_data)
+except FileNotFoundError:
+    st.error(
+        "Cache dati non trovata. Attiva 'Aggiorna dati da Yahoo Finance' "
+        "nella sidebar per scaricare i dati, oppure esegui prima:\n\n"
+        "`python scripts/example.py`"
+    )
+    st.stop()
+
+returns_hash = hash(bundle.returns.values.tobytes())
+params = _estimate_params(returns_hash, bundle.returns)
+ac_map = bundle.universe["asset_class"].to_dict()
+
+
+# ============================================================
+# Calcolo portafoglio
+# ============================================================
+
+result: DashboardResult = build_portfolio(
+    params=params,
+    profile_name=profile_name,
+    horizon_years=horizon_years,
+    crypto_weight=crypto_weight,
+    satellite_mode=satellite_mode,
+    strategy_name=strategy_name,
+    strategy_freq=strategy_freq,
+    capital_eur=float(capital_eur),
+    prices=bundle.prices,
+)
+
+report = result.report
+
+# ============================================================
+# Output: tab organizzate
+# ============================================================
+
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "Allocazione", "Rischio/Rendimento", "Backtest",
+    "Costi e Tasse", "Confronto Profili", "Report PDF",
+])
+
+# --- Tab 1: Allocazione ---
+with tab1:
+    st.subheader(f"Allocazione raccomandata — {profile_name.capitalize()}")
+
+    if result.core_satellite and crypto_weight > 0:
+        st.info(
+            f"Architettura core-satellite: core tradizionale "
+            f"({1 - report.satellite_weight:.0%}) + satellite cripto "
+            f"({report.satellite_weight:.0%})."
+        )
+
+    # Tabella strumenti
+    rows = []
+    for a in report.allocation:
+        rows.append({
+            "Strumento": a.name,
+            "Ticker": a.ticker,
+            "Classe": a.asset_class.capitalize(),
+            "Regione": a.region.capitalize(),
+            "Peso": f"{a.weight:.1%}",
+            "TER": f"{a.ter:.2f}%",
+            "Satellite": "Si" if a.is_satellite else "",
+        })
+    df_alloc = pd.DataFrame(rows)
+    st.dataframe(df_alloc, use_container_width=True, hide_index=True)
+
+    # Grafico per classe
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Allocazione per classe**")
+        class_df = pd.DataFrame(
+            list(report.class_allocation.items()),
+            columns=["Classe", "Peso"],
+        )
+        class_df["Peso %"] = class_df["Peso"] * 100
+        st.bar_chart(class_df.set_index("Classe")["Peso %"])
+
+    with col2:
+        st.markdown("**Dettaglio strumenti**")
+        instr_df = pd.DataFrame([
+            {"Ticker": a.ticker, "Peso %": a.weight * 100}
+            for a in report.allocation
+        ])
+        if not instr_df.empty:
+            st.bar_chart(instr_df.set_index("Ticker")["Peso %"])
+
+
+# --- Tab 2: Rischio/Rendimento ---
+with tab2:
+    st.subheader("Attese rischio/rendimento")
+    st.caption(
+        "STIME basate su dati storici e modelli statistici. "
+        "Non rappresentano garanzie di performance futura."
+    )
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Rendimento atteso", f"{report.expected_return:.2%}")
+    col2.metric("Volatilita' attesa", f"{report.expected_volatility:.2%}")
+    col3.metric("Sharpe ratio", f"{report.expected_sharpe:.2f}")
+    col4.metric("CVaR 95%", f"{report.expected_cvar_95:.2%}")
+
+    st.markdown(f"""
+    | Parametro | Valore |
+    |---|---|
+    | Profilo | {report.profile_name.capitalize()} |
+    | Orizzonte | {report.horizon_years} anni ({report.horizon_band}) |
+    | Vol ceiling nominale | {report.vol_ceiling:.1%} |
+    | Vol ceiling effettivo | {report.effective_vol_ceiling:.1%} |
+    | Risk-free rate | {report.risk_free_rate:.2%} |
+    | Finestra di stima | {report.estimation_window} |
+    """)
+
+
+# --- Tab 3: Backtest ---
+with tab3:
+    st.subheader("Backtest (out-of-sample)")
+
+    if result.strategy_result is not None:
+        bt = result.strategy_result
+        m = bt.metrics
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("CAGR", f"{m['cagr']:.2%}")
+        col2.metric("Volatilita'", f"{m['volatility']:.2%}")
+        col3.metric("Max Drawdown", f"{m['max_drawdown']:.2%}")
+        col4.metric("Sharpe", f"{m['sharpe']:.2f}")
+
+        st.markdown(
+            f"Ribilanciamenti: {m['n_rebalances']} | "
+            f"Turnover totale: {m['total_turnover']:.2f} | "
+            f"Periodo: 2020-01-02 / 2024-12-31"
+        )
+
+        # Equity curve
+        st.markdown("**Equity curve**")
+        chart_df = pd.DataFrame({
+            "Valore portafoglio": bt.portfolio_value.values,
+        }, index=bt.portfolio_value.index)
+        st.line_chart(chart_df)
+
+        # Drawdown
+        cummax = bt.portfolio_value.cummax()
+        dd = (bt.portfolio_value - cummax) / cummax * 100
+        st.markdown("**Drawdown (%)**")
+        st.area_chart(pd.DataFrame({"Drawdown": dd.values}, index=dd.index))
+    else:
+        st.warning("Backtest non disponibile (dati insufficienti o errore).")
+
+
+# --- Tab 4: Costi e Tasse ---
+with tab4:
+    st.subheader(f"Costi e fiscalita' (capitale: {capital_eur:,.0f} EUR)")
+    st.caption("Stime indicative. La fiscalita' NON costituisce consulenza fiscale.")
+
+    if result.cost_breakdown is not None:
+        cb = result.cost_breakdown
+
+        if cb.costs_exceed_capital:
+            st.error(
+                "I costi superano il capitale di riferimento. "
+                "Aumentare il capitale o ridurre la frequenza di ribilanciamento."
+            )
+
+        st.markdown("**Confronto CAGR**")
+        cagr_data = {"CAGR lordo": cb.cagr_gross}
+        if np.isfinite(cb.cagr_net_costs) and cb.cagr_net_costs > -1.0:
+            cagr_data["CAGR netto costi"] = cb.cagr_net_costs
+        if result.tax_breakdown is not None:
+            tb = result.tax_breakdown
+            if np.isfinite(tb.cagr_net_tax) and tb.cagr_net_tax > -1.0:
+                cagr_data["CAGR netto tasse"] = tb.cagr_net_tax
+
+        cols = st.columns(len(cagr_data))
+        for i, (label, val) in enumerate(cagr_data.items()):
+            cols[i].metric(label, f"{val:.2%}")
+
+        # Dettaglio costi
+        st.markdown("**Dettaglio costi (stima indicativa)**")
+        cost_rows = [
+            ("TER medio ponderato (annuo)", f"{cb.ter_drag_annual:.3%}"),
+            ("TER drag totale", f"{cb.ter_drag_total:,.2f} EUR"),
+            ("Spread totale", f"{cb.spread_total:,.2f} EUR"),
+            ("Commissioni broker", f"{cb.commission_total:,.2f} EUR"),
+            ("**Costi transazione**", f"**{cb.tx_cost_total:,.2f} EUR**"),
+            ("**Costi totali**", f"**{cb.total_costs:,.2f} EUR**"),
+            ("Impatto su CAGR", f"{cb.cost_impact_cagr:.3%}"),
+        ]
+        st.table(pd.DataFrame(cost_rows, columns=["Voce", "Valore"]))
+
+        # Dettaglio tasse
+        if result.tax_breakdown is not None:
+            tb = result.tax_breakdown
+            st.markdown("**Dettaglio fiscalita' (stima indicativa)**")
+            tax_rows = [
+                ("Imposta capital gain", f"{tb.capital_gain_tax:,.2f} EUR"),
+                ("Aliquota effettiva media", f"{tb.capital_gain_rate_effective:.1%}"),
+                ("Bollo annuo", f"{tb.bollo_annual:,.2f} EUR"),
+                ("Bollo totale periodo", f"{tb.bollo_total:,.2f} EUR"),
+                ("**Totale tasse**", f"**{tb.total_tax:,.2f} EUR**"),
+                ("Impatto tasse su CAGR", f"{tb.tax_impact_cagr:.3%}"),
+            ]
+            st.table(pd.DataFrame(tax_rows, columns=["Voce", "Valore"]))
+
+            for note in tb.notes:
+                st.caption(f"— {note}")
+    else:
+        st.info("I costi vengono calcolati solo quando il backtest e' disponibile.")
+
+
+# --- Tab 5: Confronto Profili ---
+with tab5:
+    st.subheader("Confronto 5 profili")
+
+    @st.cache_data(show_spinner="Costruzione confronto profili...")
+    def _build_comparison(_params_hash, params, horizon, _prices_hash, prices):
+        return build_profile_comparison(params, horizon, prices)
+
+    prices_hash = hash(bundle.prices.values.tobytes())
+    comp = _build_comparison(returns_hash, params, horizon_years, prices_hash, bundle.prices)
+
+    # Tabella
+    comp_rows = []
+    for i, name in enumerate(comp.names):
+        mdd_str = f"{comp.max_drawdowns[i]:.2%}" if comp.max_drawdowns[i] is not None else "n/d"
+        comp_rows.append({
+            "Profilo": name.capitalize(),
+            "Vol attesa": f"{comp.volatilities[i]:.2%}",
+            "Rend. atteso": f"{comp.returns[i]:.2%}",
+            "Sharpe": f"{comp.sharpes[i]:.2f}",
+            "Max Drawdown": mdd_str,
+        })
+    st.dataframe(pd.DataFrame(comp_rows), use_container_width=True, hide_index=True)
+
+    # Grafico composizione
+    st.markdown("**Composizione per classe**")
+    all_classes = sorted(set(c for ca in comp.class_allocations for c in ca))
+    comp_chart = pd.DataFrame(
+        [{c: ca.get(c, 0.0) * 100 for c in all_classes} for ca in comp.class_allocations],
+        index=[n.capitalize() for n in comp.names],
+    )
+    st.bar_chart(comp_chart)
+
+
+# --- Tab 6: Report PDF ---
+with tab6:
+    st.subheader("Genera report PDF")
+
+    if can_render_pdf():
+        if st.button("Genera PDF"):
+            with st.spinner("Generazione PDF in corso..."):
+                pdf_bytes = generate_pdf_bytes(report)
+            if pdf_bytes:
+                st.download_button(
+                    label="Scarica PDF",
+                    data=pdf_bytes,
+                    file_name=f"piano_{profile_name}.pdf",
+                    mime="application/pdf",
+                )
+                st.success("PDF generato con successo.")
+            else:
+                st.error("Errore nella generazione del PDF.")
+    else:
+        st.warning(
+            "La generazione PDF richiede la libreria **weasyprint** e le sue "
+            "dipendenze di sistema (pango, gdk-pixbuf). "
+            "La dashboard resta completamente usabile senza il PDF.\n\n"
+            "Per abilitare il PDF, installa:\n"
+            "```\npip install weasyprint\n"
+            "# macOS: brew install pango gdk-pixbuf libffi\n"
+            "# Linux: apt-get install libpango-1.0-0 libgdk-pixbuf2.0-0\n```"
+        )

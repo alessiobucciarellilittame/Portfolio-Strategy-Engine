@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m venv .venv)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(pip install:*)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m pytest tests/ -v --network --tb=short)",
+      "Bash(python scripts/example.py --start 2024-01-02 --end 2024-12-31)",
+      "Bash(python scripts/example.py --start 2024-01-02 --end 2024-12-31 --refresh)",
+      "Bash(python -m pytest tests/ --network -v)",
+      "Bash(python scripts/example.py)",
+      "Bash(python -m pytest tests/test_mean_estimators.py tests/test_cov_estimators.py tests/test_estimation.py -v --tb=short)",
+      "Bash(python scripts/example_estimation.py)",
+      "Bash(python -m pytest tests/ -v --network)",
+      "Bash(python -m pytest tests/test_optimizer.py -v --tb=short)",
+      "Bash(python scripts/example_optimization.py)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(python -m pytest tests/test_profiles.py -v --tb=short)",
+      "Bash(python scripts/example_profiles.py)",
+      "Bash(python -m pytest tests/test_strategies.py -v --tb=short)",
+      "Bash(python scripts/example_strategies.py)",
+      "Bash(python:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(ls:*)",
+      "Bash(python -c \":*)",
+      "Bash(.venv/bin/python -m pytest tests/ -x -q)",
+      "Bash(.venv/bin/python scripts/example_profiles.py 2>&1)",
+      "Bash(.venv/bin/python -m pytest tests/test_cvar_historical.py tests/test_risk_free.py -x -q)",
+      "Bash(.venv/bin/python scripts/example_ritocchi.py 2>&1)",
+      "Bash(.venv/bin/python -m pytest tests/test_profiles.py tests/test_core_satellite.py -v)",
+      "Bash(.venv/bin/python -m pytest tests/ -v)",
+      "Bash(.venv/bin/python -m pytest tests/test_cov_estimators.py -v 2>&1)",
+      "Bash(.venv/bin/python -m pytest tests/ -q)",
+      "Bash(.venv/bin/pip show:*)",
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(.venv/bin/python -m pytest tests/test_reporting.py -v 2>&1)",
+      "Bash(brew list:*)",
+      "Bash(source /Users/alessiobucciarelli/Desktop/Portfolio-Strategy-Engine/.venv/bin/activate)"
+    ]
+  }
+}

@@ -1,0 +1,78 @@
+# Universo multi-asset per il Portfolio Strategy Engine
+# Ogni strumento: ticker Yahoo Finance, nome, asset_class, regione, valuta, TER (%)
+# Facilmente modificabile: aggiungi/rimuovi strumenti qui.
+
+instruments:
+  # --- Azionario ---
+  - ticker: "SWDA.MI"
+    name: "iShares Core MSCI World UCITS ETF"
+    asset_class: "equity"
+    region: "global"
+    currency: "EUR"
+    ter: 0.20
+
+  - ticker: "CSSPX.MI"
+    name: "iShares Core S&P 500 UCITS ETF"
+    asset_class: "equity"
+    region: "usa"
+    currency: "EUR"
+    ter: 0.07
+
+  - ticker: "SXR8.DE"
+    name: "iShares Core Euro STOXX 50 UCITS ETF"
+    asset_class: "equity"
+    region: "europe"
+    currency: "EUR"
+    ter: 0.10
+
+  - ticker: "EIMI.MI"
+    name: "iShares Core MSCI EM IMI UCITS ETF"
+    asset_class: "equity"
+    region: "emerging"
+    currency: "EUR"
+    ter: 0.18
+
+  # --- Obbligazionario ---
+  - ticker: "IBGS.MI"
+    name: "iShares EUR Govt Bond 1-3yr UCITS ETF"
+    asset_class: "bond"
+    region: "europe"
+    currency: "EUR"
+    ter: 0.20
+
+  - ticker: "XGLE.MI"
+    name: "Xtrackers II Eurozone Govt Bond UCITS ETF"
+    asset_class: "bond"
+    region: "europe"
+    currency: "EUR"
+    ter: 0.09
+
+  - ticker: "IEAC.MI"
+    name: "iShares Core EUR Corporate Bond UCITS ETF"
+    asset_class: "bond"
+    region: "europe"
+    currency: "EUR"
+    ter: 0.20
+
+  # --- Materie prime ---
+  - ticker: "SGLD.MI"
+    name: "Invesco Physical Gold ETC"
+    asset_class: "commodity"
+    region: "global"
+    currency: "EUR"
+    ter: 0.12
+
+  # --- Crypto ---
+  - ticker: "BTC-EUR"
+    name: "Bitcoin"
+    asset_class: "crypto"
+    region: "global"
+    currency: "EUR"
+    ter: 0.00
+
+  - ticker: "ETH-EUR"
+    name: "Ethereum"
+    asset_class: "crypto"
+    region: "global"
+    currency: "EUR"
+    ter: 0.00
