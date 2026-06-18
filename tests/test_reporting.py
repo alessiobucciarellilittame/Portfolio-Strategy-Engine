@@ -35,15 +35,15 @@ from src.reporting import (
 # Helper: dati sintetici
 # ============================================================
 
-def _make_params(p=10, seed=42):
-    """ParameterEstimate realistico con 4 equity, 3 bond, 1 commodity, 2 crypto."""
+def _make_params(p=9, seed=42):
+    """ParameterEstimate realistico con 4 equity, 3 bond, 1 commodity, 1 crypto."""
     tickers = [
         "SWDA.MI", "CSSPX.MI", "SXR8.DE", "EIMI.MI",
         "IBGS.MI", "XGLE.MI", "IEAC.MI", "SGLD.MI",
-        "BTC-EUR", "ETH-EUR",
+        "BTC-EUR",
     ][:p]
-    mu = np.array([0.08, 0.10, 0.09, 0.06, 0.03, 0.04, 0.05, 0.12, 0.40, 0.30])[:p]
-    vols = np.array([0.12, 0.13, 0.12, 0.14, 0.02, 0.06, 0.04, 0.13, 0.50, 0.55])[:p]
+    mu = np.array([0.08, 0.10, 0.09, 0.06, 0.03, 0.04, 0.05, 0.12, 0.40])[:p]
+    vols = np.array([0.12, 0.13, 0.12, 0.14, 0.02, 0.06, 0.04, 0.13, 0.50])[:p]
     rng = np.random.RandomState(seed)
     corr = np.eye(p)
     for i in range(p):
@@ -71,7 +71,7 @@ def _asset_class_map():
         "SXR8.DE": "equity", "EIMI.MI": "equity",
         "IBGS.MI": "bond", "XGLE.MI": "bond", "IEAC.MI": "bond",
         "SGLD.MI": "commodity",
-        "BTC-EUR": "crypto", "ETH-EUR": "crypto",
+        "BTC-EUR": "crypto",
     }
 
 

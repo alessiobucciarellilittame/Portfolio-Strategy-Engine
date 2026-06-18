@@ -10,7 +10,6 @@ from src.core_satellite import (
     build_core_satellite,
     _filter_params,
     DEFAULT_SATELLITE,
-    BTC_ETH_SATELLITE,
 )
 
 
@@ -18,22 +17,22 @@ from src.core_satellite import (
 # Helper: parametri sintetici con crypto
 # ============================================================
 
-def _make_params(p=10, seed=42):
-    """ParameterEstimate realistico con 4 equity, 3 bond, 1 commodity, 2 crypto."""
+def _make_params(p=9, seed=42):
+    """ParameterEstimate realistico con 4 equity, 3 bond, 1 commodity, 1 crypto."""
     tickers = [
         "SWDA.MI", "CSSPX.MI", "SXR8.DE", "EIMI.MI",
         "IBGS.MI", "XGLE.MI", "IEAC.MI", "SGLD.MI",
-        "BTC-EUR", "ETH-EUR",
+        "BTC-EUR",
     ][:p]
     mu = np.array([
         0.08, 0.10, 0.09, 0.06,
         0.03, 0.04, 0.05, 0.12,
-        0.40, 0.30,
+        0.40,
     ])[:p]
     vols = np.array([
         0.12, 0.13, 0.12, 0.14,
         0.02, 0.06, 0.04, 0.13,
-        0.50, 0.55,
+        0.50,
     ])[:p]
     rng = np.random.RandomState(seed)
     corr = np.eye(p)
@@ -59,7 +58,7 @@ def _ac_map():
         "SXR8.DE": "equity", "EIMI.MI": "equity",
         "IBGS.MI": "bond", "XGLE.MI": "bond", "IEAC.MI": "bond",
         "SGLD.MI": "commodity",
-        "BTC-EUR": "crypto", "ETH-EUR": "crypto",
+        "BTC-EUR": "crypto",
     }
 
 
@@ -102,21 +101,20 @@ def _conservativo():
 class TestFilterParams:
     def test_excludes_tickers(self):
         params = _make_params()
-        filtered = _filter_params(params, {"BTC-EUR", "ETH-EUR"})
+        filtered = _filter_params(params, {"BTC-EUR"})
         assert "BTC-EUR" not in filtered.tickers
-        assert "ETH-EUR" not in filtered.tickers
         assert len(filtered.tickers) == 8
 
     def test_mu_cov_shape(self):
         params = _make_params()
-        filtered = _filter_params(params, {"BTC-EUR", "ETH-EUR"})
+        filtered = _filter_params(params, {"BTC-EUR"})
         assert filtered.mu.shape == (8,)
         assert filtered.cov.shape == (8, 8)
 
     def test_preserves_values(self):
         """I valori di mu e cov per i ticker rimanenti devono essere invariati."""
         params = _make_params()
-        filtered = _filter_params(params, {"BTC-EUR", "ETH-EUR"})
+        filtered = _filter_params(params, {"BTC-EUR"})
         # SWDA.MI e' il primo ticker in entrambi
         assert filtered.tickers[0] == "SWDA.MI"
         np.testing.assert_allclose(filtered.mu[0], params.mu[0])
@@ -261,21 +259,6 @@ class TestCombination:
         )
         assert abs(result.satellite_weights.get("BTC-EUR", 0) - cw) < 1e-10
         assert abs(result.combined_weights.get("BTC-EUR", 0) - cw) < 1e-10
-
-    def test_btc_eth_satellite(self):
-        """Con satellite BTC/ETH, ciascuno deve avere cw/2."""
-        cw = 0.04
-        result = build_core_satellite(
-            _bilanciato(), _make_params(), _ac_map(),
-            crypto_weight=cw,
-            satellite_tickers=BTC_ETH_SATELLITE,
-        )
-        np.testing.assert_allclose(
-            result.satellite_weights["BTC-EUR"], 0.02, atol=1e-10,
-        )
-        np.testing.assert_allclose(
-            result.satellite_weights["ETH-EUR"], 0.02, atol=1e-10,
-        )
 
 
 # ============================================================

@@ -32,6 +32,27 @@ instruments:
     currency: "EUR"
     ter: 0.18
 
+  - ticker: "EQQQ.DE"
+    name: "Invesco EQQQ Nasdaq-100 UCITS ETF"
+    asset_class: "equity"
+    region: "usa"
+    currency: "EUR"
+    ter: 0.30
+
+  - ticker: "SJPA.MI"
+    name: "iShares Core MSCI Japan IMI UCITS ETF"
+    asset_class: "equity"
+    region: "japan"
+    currency: "EUR"
+    ter: 0.15
+
+  - ticker: "SMEA.MI"
+    name: "iShares Core MSCI Europe UCITS ETF"
+    asset_class: "equity"
+    region: "europe"
+    currency: "EUR"
+    ter: 0.12
+
   # --- Obbligazionario ---
   - ticker: "IBGS.MI"
     name: "iShares EUR Govt Bond 1-3yr UCITS ETF"
@@ -54,6 +75,27 @@ instruments:
     currency: "EUR"
     ter: 0.20
 
+  - ticker: "IBCI.DE"
+    name: "iShares EUR Inflation Linked Govt Bond UCITS ETF"
+    asset_class: "bond"
+    region: "europe"
+    currency: "EUR"
+    ter: 0.09
+
+  - ticker: "DBXG.DE"
+    name: "Xtrackers II Eurozone Govt Bond 25+ UCITS ETF"
+    asset_class: "bond"
+    region: "europe"
+    currency: "EUR"
+    ter: 0.15
+
+  - ticker: "EUNW.DE"
+    name: "iShares EUR High Yield Corp Bond UCITS ETF"
+    asset_class: "bond"
+    region: "europe"
+    currency: "EUR"
+    ter: 0.50
+
   # --- Materie prime ---
   - ticker: "SGLD.MI"
     name: "Invesco Physical Gold ETC"
@@ -70,9 +112,8 @@ instruments:
     currency: "EUR"
     ter: 0.00
 
-  - ticker: "ETH-EUR"
-    name: "Ethereum"
-    asset_class: "crypto"
-    region: "global"
-    currency: "EUR"
-    ter: 0.00
+  # ETH-EUR rimosso: storia disponibile solo dal nov-2017, accorciava la
+  # finestra di stima di ~3 anni per TUTTI gli strumenti (dropna).
+  # Riaggiungibile quando avra' storia sufficiente dal 2015, oppure se si
+  # accetta una finestra piu' corta. Basta re-inserire la riga e riscaricare
+  # la cache (refresh_cache=True).

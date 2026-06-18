@@ -6,7 +6,7 @@ la stima). Diventano un "satellite" deciso esplicitamente dall'utente,
 aggiunto sopra un "core" costruito sui soli asset tradizionali.
 
 Costruzione:
-1. CORE: ottimizzatore su asset tradizionali (no BTC/ETH), con i vincoli
+1. CORE: ottimizzatore su asset tradizionali (no crypto), con i vincoli
    del profilo (vol ceiling, tetti di classe, max per asset).
 2. SATELLITE: quota cripto esplicita, default = solo BTC.
    Deve rispettare il tetto cripto del profilo.
@@ -37,9 +37,8 @@ from .optimizer import _historical_cvar, _parametric_cvar, MIN_SCENARIOS_CVAR
 
 logger = logging.getLogger(__name__)
 
-# Configurazioni satellite predefinite
+# Configurazione satellite predefinita (solo BTC; ETH rimosso dall'universo)
 DEFAULT_SATELLITE: dict[str, float] = {"BTC-EUR": 1.0}
-BTC_ETH_SATELLITE: dict[str, float] = {"BTC-EUR": 0.5, "ETH-EUR": 0.5}
 
 
 @dataclass
@@ -115,7 +114,6 @@ def build_core_satellite(
         crypto_weight: quota satellite cripto desiderata (0.0 - 1.0)
         satellite_tickers: composizione del satellite
             {ticker: peso_relativo}. Default: {"BTC-EUR": 1.0}.
-            Per BTC/ETH equipesato: {"BTC-EUR": 0.5, "ETH-EUR": 0.5}.
         horizon_years: orizzonte investitore
 
     Restituisce:

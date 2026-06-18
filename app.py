@@ -68,23 +68,18 @@ with st.sidebar:
     max_crypto = profiles_cfg[profile_name].group_limits.get("crypto", (0, 0))[1]
     if max_crypto > 0:
         crypto_weight = st.slider(
-            "Quota satellite cripto",
+            "Quota satellite cripto (BTC)",
             min_value=0.0,
             max_value=float(max_crypto),
             value=0.0,
             step=0.01,
             format="%.0f%%",
-            help=f"Tetto profilo: {max_crypto:.0%}",
-        )
-        satellite_mode = st.radio(
-            "Composizione satellite",
-            ["btc", "btc_eth"],
-            format_func=lambda x: "Solo BTC" if x == "btc" else "BTC + ETH (50/50)",
+            help=f"Tetto profilo: {max_crypto:.0%}. Satellite = solo BTC.",
         )
     else:
         crypto_weight = 0.0
-        satellite_mode = "btc"
         st.info("Profilo conservativo: cripto non disponibile.")
+    satellite_mode = "btc"
 
     # Strategia
     strategy_name = st.selectbox(

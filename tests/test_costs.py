@@ -88,7 +88,7 @@ def _ac_map():
         "SXR8.DE": "equity", "EIMI.MI": "equity",
         "IBGS.MI": "bond", "XGLE.MI": "bond", "IEAC.MI": "bond",
         "SGLD.MI": "commodity",
-        "BTC-EUR": "crypto", "ETH-EUR": "crypto",
+        "BTC-EUR": "crypto",
     }
 
 
@@ -194,8 +194,8 @@ class TestTERDrag:
         pv = _make_equity_curve()
         # Cripto ha TER=0
         wh = pd.DataFrame(
-            np.tile([0.5, 0.5], (len(pv), 1)),
-            index=pv.index, columns=["BTC-EUR", "ETH-EUR"],
+            np.ones((len(pv), 1)),
+            index=pv.index, columns=["BTC-EUR"],
         )
         pv_net, ter_total = apply_ter_drag(pv, wh)
         np.testing.assert_allclose(pv_net.values, pv.values, rtol=1e-10)
@@ -241,10 +241,10 @@ class TestCostBreakdown:
             weights_before={"SWDA.MI": 0.6, "IBGS.MI": 0.4},
             weights_after={"SWDA.MI": 0.6, "IBGS.MI": 0.4},
         )]
-        target = {"BTC-EUR": 0.5, "ETH-EUR": 0.5}  # TER=0
+        target = {"BTC-EUR": 1.0}  # TER=0
         wh_zero = pd.DataFrame(
-            np.tile([0.5, 0.5], (len(pv), 1)),
-            index=pv.index, columns=["BTC-EUR", "ETH-EUR"],
+            np.ones((len(pv), 1)),
+            index=pv.index, columns=["BTC-EUR"],
         )
         cfg = _zero_cost_config()
         cb = build_cost_breakdown(pv, wh_zero, log_zero, target, _ac_map(),

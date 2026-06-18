@@ -21,14 +21,14 @@ from src.universe import load_universe
 # Helper: dati sintetici (riusa il pattern dei test esistenti)
 # ============================================================
 
-def _make_params(p=10, seed=42):
+def _make_params(p=9, seed=42):
     tickers = [
         "SWDA.MI", "CSSPX.MI", "SXR8.DE", "EIMI.MI",
         "IBGS.MI", "XGLE.MI", "IEAC.MI", "SGLD.MI",
-        "BTC-EUR", "ETH-EUR",
+        "BTC-EUR",
     ][:p]
-    mu = np.array([0.08, 0.10, 0.09, 0.06, 0.03, 0.04, 0.05, 0.12, 0.40, 0.30])[:p]
-    vols = np.array([0.12, 0.13, 0.12, 0.14, 0.02, 0.06, 0.04, 0.13, 0.50, 0.55])[:p]
+    mu = np.array([0.08, 0.10, 0.09, 0.06, 0.03, 0.04, 0.05, 0.12, 0.40])[:p]
+    vols = np.array([0.12, 0.13, 0.12, 0.14, 0.02, 0.06, 0.04, 0.13, 0.50])[:p]
     rng = np.random.RandomState(seed)
     corr = np.eye(p)
     for i in range(p):
@@ -55,7 +55,7 @@ def _make_prices(tickers=None, n_days=1200, seed=42):
         tickers = [
             "SWDA.MI", "CSSPX.MI", "SXR8.DE", "EIMI.MI",
             "IBGS.MI", "XGLE.MI", "IEAC.MI", "SGLD.MI",
-            "BTC-EUR", "ETH-EUR",
+            "BTC-EUR",
         ]
     rng = np.random.RandomState(seed)
     idx = pd.bdate_range("2018-01-02", periods=n_days)
@@ -110,25 +110,6 @@ class TestBuildPortfolio:
         )
         assert result.core_satellite is not None
         assert result.report.satellite_weight > 0
-
-    def test_with_btc_eth(self):
-        """build_portfolio con BTC+ETH satellite."""
-        params = _make_params()
-        prices = _make_prices()
-        result = build_portfolio(
-            params=params,
-            profile_name="dinamico",
-            horizon_years=5,
-            crypto_weight=0.05,
-            satellite_mode="btc_eth",
-            strategy_name="periodic",
-            strategy_freq="monthly",
-            capital_eur=100_000,
-            prices=prices,
-        )
-        assert result.core_satellite is not None
-        sat_tickers = list(result.core_satellite.satellite_weights.keys())
-        assert "ETH-EUR" in sat_tickers
 
     def test_backtest_present(self):
         """Con prezzi sufficienti, il backtest deve essere presente."""

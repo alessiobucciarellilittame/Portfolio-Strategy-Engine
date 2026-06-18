@@ -30,7 +30,6 @@ from .core_satellite import (
     build_core_satellite,
     CoreSatelliteResult,
     DEFAULT_SATELLITE,
-    BTC_ETH_SATELLITE,
 )
 from .strategies import simulate, StrategyResult, BuyAndHold, PeriodicRebalance, ThresholdRebalance
 from .reporting import (
@@ -119,7 +118,7 @@ def build_portfolio(
         profile_name: nome del profilo (es. "bilanciato")
         horizon_years: orizzonte temporale in anni
         crypto_weight: quota satellite cripto (0.0 - tetto profilo)
-        satellite_mode: "btc" o "btc_eth"
+        satellite_mode: "btc" (unica opzione; ETH rimosso dall'universo)
         strategy_name: "buy_and_hold", "periodic", "threshold"
         strategy_freq: frequenza ribilanciamento ("monthly", "quarterly", "annual")
         capital_eur: capitale di riferimento in EUR per costi/tasse
@@ -132,11 +131,9 @@ def build_portfolio(
     # Core-satellite (se crypto > 0)
     cs = None
     if crypto_weight > 0:
-        sat_tickers = BTC_ETH_SATELLITE if satellite_mode == "btc_eth" else None
         cs = build_core_satellite(
             profile, params, ac_map,
             crypto_weight=crypto_weight,
-            satellite_tickers=sat_tickers,
             horizon_years=horizon_years,
         )
         pr = cs.profile_result

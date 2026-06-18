@@ -16,7 +16,7 @@ from src.profiles import (
 )
 
 
-def _make_params(p=10, seed=42):
+def _make_params(p=9, seed=42):
     """Crea ParameterEstimate realistico per i test.
 
     Volatilità strutturate realisticamente:
@@ -26,12 +26,12 @@ def _make_params(p=10, seed=42):
     tickers = [
         "SWDA.MI", "CSSPX.MI", "SXR8.DE", "EIMI.MI",
         "IBGS.MI", "XGLE.MI", "IEAC.MI", "SGLD.MI",
-        "BTC-EUR", "ETH-EUR",
+        "BTC-EUR",
     ][:p]
     # Rendimenti attesi annualizzati realistici
-    mu = np.array([0.08, 0.10, 0.09, 0.06, 0.03, 0.04, 0.05, 0.12, 0.40, 0.30])[:p]
+    mu = np.array([0.08, 0.10, 0.09, 0.06, 0.03, 0.04, 0.05, 0.12, 0.40])[:p]
     # Volatilità annualizzate realistiche
-    vols = np.array([0.12, 0.13, 0.12, 0.14, 0.02, 0.06, 0.04, 0.13, 0.50, 0.55])[:p]
+    vols = np.array([0.12, 0.13, 0.12, 0.14, 0.02, 0.06, 0.04, 0.13, 0.50])[:p]
     # Matrice di correlazione: intra-classe alta, inter-classe bassa
     rng = np.random.RandomState(seed)
     corr = np.eye(p)
@@ -61,7 +61,7 @@ def _asset_class_map():
         "SXR8.DE": "equity", "EIMI.MI": "equity",
         "IBGS.MI": "bond", "XGLE.MI": "bond", "IEAC.MI": "bond",
         "SGLD.MI": "commodity",
-        "BTC-EUR": "crypto", "ETH-EUR": "crypto",
+        "BTC-EUR": "crypto",
     }
 
 
