@@ -36,7 +36,11 @@
       "Bash(.venv/bin/pip install:*)",
       "Bash(.venv/bin/python -m pytest tests/test_reporting.py -v 2>&1)",
       "Bash(brew list:*)",
-      "Bash(source /Users/alessiobucciarelli/Desktop/Portfolio-Strategy-Engine/.venv/bin/activate)"
+      "Bash(source /Users/alessiobucciarelli/Desktop/Portfolio-Strategy-Engine/.venv/bin/activate)",
+      "Bash(.venv/bin/python -m pytest tests/test_pac.py -v 2>&1)",
+      "Bash(.venv/bin/python -c \"\nimport pandas as pd, numpy as np\nidx = pd.bdate_range\\('2022-01-03', periods=253, name='date'\\)\nprint\\('First:', idx[0], 'Last:', idx[-1]\\)\ntheoretical = pd.date_range\\(start=idx[0], end=idx[-1], freq='YS'\\)\nprint\\('Theoretical:', theoretical\\)\n\")",
+      "Bash(.venv/bin/python -m pytest tests/ -v --ignore=tests/test_pac.py)",
+      "Bash(.venv/bin/python -m pytest tests/ -v --tb=short)"
     ]
   }
 }

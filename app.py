@@ -15,6 +15,7 @@ from src.dashboard_data import (
     estimate_params,
     build_portfolio,
     build_profile_comparison,
+    build_pac_comparison,
     can_render_pdf,
     generate_pdf_bytes,
     DashboardResult,
@@ -110,6 +111,40 @@ with st.sidebar:
         help="Per il calcolo di costi e tasse (commissioni minime, bollo).",
     )
 
+    # Modalita' PAC
+    st.divider()
+    st.header("Modalita' investimento")
+    invest_mode = st.radio(
+        "Modalita'",
+        ["Somma unica", "PAC"],
+        index=0,
+        help="Somma unica: investi tutto al giorno zero. PAC: versamenti periodici.",
+    )
+    pac_active = invest_mode == "PAC"
+
+    if pac_active:
+        pac_contribution = st.number_input(
+            "Versamento periodico (EUR)",
+            min_value=50,
+            max_value=50_000,
+            value=500,
+            step=50,
+            help="Importo fisso di ogni versamento PAC.",
+        )
+        pac_frequency = st.selectbox(
+            "Frequenza versamenti",
+            ["monthly", "quarterly", "annual"],
+            index=0,
+            format_func=lambda x: {
+                "monthly": "Mensile",
+                "quarterly": "Trimestrale",
+                "annual": "Annuale",
+            }[x],
+        )
+    else:
+        pac_contribution = 500
+        pac_frequency = "monthly"
+
     st.divider()
     refresh_data = st.checkbox("Aggiorna dati da Yahoo Finance", value=False)
 
@@ -165,10 +200,16 @@ report = result.report
 # Output: tab organizzate
 # ============================================================
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "Allocazione", "Rischio/Rendimento", "Backtest",
-    "Costi e Tasse", "Confronto Profili", "Report PDF",
-])
+if pac_active:
+    tab1, tab2, tab3, tab_pac, tab4, tab5, tab6 = st.tabs([
+        "Allocazione", "Rischio/Rendimento", "Backtest",
+        "PAC vs Somma unica", "Costi e Tasse", "Confronto Profili", "Report PDF",
+    ])
+else:
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "Allocazione", "Rischio/Rendimento", "Backtest",
+        "Costi e Tasse", "Confronto Profili", "Report PDF",
+    ])
 
 # --- Tab 1: Allocazione ---
 with tab1:
@@ -277,6 +318,100 @@ with tab3:
         st.area_chart(pd.DataFrame({"Drawdown": dd.values}, index=dd.index))
     else:
         st.warning("Backtest non disponibile (dati insufficienti o errore).")
+
+
+# --- Tab PAC: confronto PAC vs somma unica ---
+if pac_active:
+    with tab_pac:
+        st.subheader("PAC vs Somma unica")
+        st.caption(
+            f"Versamento: {pac_contribution:,.0f} EUR "
+            f"({'mensile' if pac_frequency == 'monthly' else 'trimestrale' if pac_frequency == 'quarterly' else 'annuale'}). "
+            "Il confronto usa lo stesso totale investito e lo stesso periodo."
+        )
+
+        @st.cache_data(show_spinner="Simulazione PAC in corso...")
+        def _build_pac(
+            _params_hash, params, profile, horizon, crypto_w, sat_mode,
+            strat_name, strat_freq, _prices_hash, prices,
+            contribution, pac_freq,
+        ):
+            return build_pac_comparison(
+                params, profile, horizon, crypto_w, sat_mode,
+                strat_name, strat_freq, prices,
+                contribution, pac_freq,
+            )
+
+        try:
+            pac_comp = _build_pac(
+                returns_hash, params, profile_name, horizon_years,
+                crypto_weight, satellite_mode, strategy_name, strategy_freq,
+                prices_hash, bundle.prices,
+                float(pac_contribution), pac_frequency,
+            )
+
+            pac_s = pac_comp.summary["pac"]
+            ls_s = pac_comp.summary["lumpsum"]
+
+            # Metriche affiancate
+            st.markdown("**Riepilogo**")
+            col_pac, col_ls = st.columns(2)
+
+            with col_pac:
+                st.markdown("##### PAC")
+                st.metric("Totale versato", f"{pac_s['total_invested']:,.0f} EUR")
+                st.metric("Valore finale", f"{pac_s['final_value']:,.0f} EUR")
+                st.metric("Guadagno", f"{pac_s['absolute_gain']:,.0f} EUR")
+                st.metric("IRR (money-weighted)", f"{pac_s['irr']:.2%}")
+                st.metric("Max Drawdown", f"{pac_s['max_drawdown']:.2%}")
+                st.metric("Costi totali", f"{pac_s['total_costs']:,.2f} EUR")
+
+            with col_ls:
+                st.markdown("##### Somma unica")
+                st.metric("Totale investito", f"{ls_s['total_invested']:,.0f} EUR")
+                st.metric("Valore finale", f"{ls_s['final_value']:,.0f} EUR")
+                st.metric("Guadagno", f"{ls_s['absolute_gain']:,.0f} EUR")
+                st.metric("CAGR", f"{ls_s['cagr']:.2%}")
+                st.metric("Max Drawdown", f"{ls_s['max_drawdown']:.2%}")
+                st.metric("Costi totali", f"{ls_s['total_costs']:,.2f} EUR")
+
+            # Curve di valore sovrapposte
+            st.markdown("**Curve di valore**")
+            chart_data = pd.DataFrame({
+                "PAC": pac_comp.pac.portfolio_value.values,
+                "Somma unica": pac_comp.lumpsum.portfolio_value.values,
+            }, index=pac_comp.pac.portfolio_value.index)
+            st.line_chart(chart_data)
+
+            # Dettaglio costi PAC
+            st.markdown("**Dettaglio costi PAC**")
+            pac_m = pac_comp.pac.metrics
+            n_contrib = pac_m["n_contributions"]
+            cost_rows = [
+                ("Numero versamenti", f"{n_contrib}"),
+                ("Importo per versamento", f"{pac_contribution:,.0f} EUR"),
+                ("Totale versato", f"{pac_m['total_invested']:,.0f} EUR"),
+                ("Costi totali transazione", f"{pac_m['total_costs']:,.2f} EUR"),
+                ("Costo medio per versamento", f"{pac_m['total_costs'] / n_contrib:,.2f} EUR" if n_contrib > 0 else "n/d"),
+                ("Costo medio % per versamento", f"{pac_m['avg_cost_pct']:.2%}"),
+            ]
+            st.table(pd.DataFrame(cost_rows, columns=["Voce", "Valore"]))
+
+            if pac_m["avg_cost_pct"] > 0.02:
+                st.warning(
+                    f"Il costo medio per versamento e' {pac_m['avg_cost_pct']:.1%} del versato. "
+                    "Con importi piccoli la commissione minima fissa pesa molto. "
+                    "Valuta di aumentare l'importo o ridurre la frequenza."
+                )
+
+            st.caption(
+                "Di norma la somma unica produce un valore finale piu' alto "
+                "perche' i soldi lavorano piu' a lungo, ma il PAC riduce il "
+                "rischio di tempismo (investire tutto prima di un ribasso)."
+            )
+
+        except Exception as e:
+            st.error(f"Errore nella simulazione PAC: {e}")
 
 
 # --- Tab 4: Costi e Tasse ---

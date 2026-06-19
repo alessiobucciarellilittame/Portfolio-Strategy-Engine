@@ -236,4 +236,9 @@ Decisioni prese durante lo sviluppo, da non perdere:
 - ~~**Tasso risk-free** più realistico per il calcolo dello Sharpe~~ — completato (Refinement B: risk-free centralizzato in `src/config.py`, default 2%, supporta serie storica).
 
 ### Da fare
-- Layer pratici (Fase 8): costi/fiscalità italiana, strumenti reali, integrazione portafoglio esistente.
+- ~~Layer pratici (Fase 8)~~ — completato (costi reali, fiscalità IT indicativa, FX, transizione portafoglio esistente).
+
+### Idee / ritocchi futuri (emersi durante l'uso)
+- **Periodo di backtest configurabile.** Oggi la simulazione parte da una data fissa (SIM_START = 2020-01-02). Aggiungere uno slider/parametro per scegliere da quale anno far partire il backtest (es. dal 2015), così si può vedere come sarebbe andata la strategia su finestre diverse. La stima dei parametri resta sui dati completi; cambia solo il tratto simulato.
+- **Tetto per regione / per singolo strumento.** L'ottimizzatore tende a concentrarsi sui vincitori storici: con EQQQ (Nasdaq) + CSSPX (S&P 500) entrambi al tetto del 30%, l'azionario USA arriva al ~60%. Valutare un guardrail per regione (o un max_weight più basso) per evitare scommesse troppo concentrate su un'unica area.
+- **Auto-invalidazione della cache dati nella dashboard.** Streamlit (`@st.cache_data`) continua a servire i dati vecchi quando il file della cache cambia, richiedendo un riavvio/clear cache manuale (in locale e in cloud). Aggiungere un "contrassegno di versione" (es. hash/mtime del file parquet) come chiave della cache, così si invalida da sola quando i dati cambiano.

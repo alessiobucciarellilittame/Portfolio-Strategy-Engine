@@ -47,6 +47,12 @@ from .costs import (
     TaxBreakdown,
     DEFAULT_CAPITAL_EUR,
 )
+from .pac import (
+    simulate_pac,
+    compare_pac_vs_lumpsum,
+    PacResult,
+    PacComparison,
+)
 from .universe import load_universe
 
 logger = logging.getLogger(__name__)
@@ -270,3 +276,64 @@ def generate_pdf_bytes(report: StrategyReport) -> bytes | None:
     except (ImportError, OSError) as e:
         logger.warning(f"PDF non generabile: {e}")
         return None
+
+
+# ============================================================
+# PAC (Piano di Accumulo del Capitale)
+# ============================================================
+
+def build_pac_comparison(
+    params: ParameterEstimate,
+    profile_name: str,
+    horizon_years: int,
+    crypto_weight: float,
+    satellite_mode: str,
+    strategy_name: str,
+    strategy_freq: str,
+    prices: pd.DataFrame,
+    contribution: float,
+    pac_frequency: str,
+) -> PacComparison:
+    """Costruisce il confronto PAC vs somma unica.
+
+    Parametri:
+        contribution: importo di ogni versamento PAC (EUR)
+        pac_frequency: "monthly", "quarterly", "annual"
+        (altri parametri: stessi di build_portfolio)
+    """
+    profiles = load_profiles()
+    profile = profiles[profile_name]
+    ac_map = load_universe()["asset_class"].to_dict()
+
+    # Calcola i pesi target (stessa logica di build_portfolio)
+    cs = None
+    if crypto_weight > 0:
+        cs = build_core_satellite(
+            profile, params, ac_map,
+            crypto_weight=crypto_weight,
+            horizon_years=horizon_years,
+        )
+        pr = cs.profile_result
+    else:
+        pr = build_portfolio_for_profile(
+            profile, params, horizon_years=horizon_years, asset_class_map=ac_map,
+        )
+
+    weights = cs.combined_weights if cs else pr.portfolio.weights
+
+    # Strategia
+    if strategy_name == "buy_and_hold":
+        strategy = BuyAndHold()
+    elif strategy_name == "threshold":
+        strategy = ThresholdRebalance()
+    else:
+        strategy = PeriodicRebalance(frequency=strategy_freq)
+
+    prices_sim = prices.loc[str(SIM_START):str(DATA_END)]
+
+    return compare_pac_vs_lumpsum(
+        prices_sim, weights, strategy,
+        contribution=contribution,
+        frequency=pac_frequency,
+        asset_class_map=ac_map,
+    )
