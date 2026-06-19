@@ -174,6 +174,7 @@ except FileNotFoundError:
     st.stop()
 
 returns_hash = hash(bundle.returns.values.tobytes())
+prices_hash = hash(bundle.prices.values.tobytes())
 params = _estimate_params(returns_hash, bundle.returns)
 ac_map = bundle.universe["asset_class"].to_dict()
 
