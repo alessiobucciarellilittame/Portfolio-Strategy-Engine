@@ -12,6 +12,7 @@ import pandas as pd
 
 from src.dashboard_data import (
     load_data,
+    data_version,
     estimate_params,
     build_portfolio,
     build_profile_comparison,
@@ -154,7 +155,7 @@ with st.sidebar:
 # ============================================================
 
 @st.cache_data(show_spinner="Caricamento dati dalla cache...")
-def _load_data(refresh: bool):
+def _load_data(refresh: bool, _data_version):
     return load_data(refresh=refresh)
 
 
@@ -164,7 +165,7 @@ def _estimate_params(_returns_hash, returns):
 
 
 try:
-    bundle = _load_data(refresh_data)
+    bundle = _load_data(refresh_data, data_version())
 except FileNotFoundError:
     st.error(
         "Cache dati non trovata. Attiva 'Aggiorna dati da Yahoo Finance' "

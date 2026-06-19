@@ -55,12 +55,34 @@ from .pac import (
 )
 from .universe import load_universe
 
+from .cache import DEFAULT_CACHE_DIR
+
 logger = logging.getLogger(__name__)
 
 # Periodo dati di default (coerente con gli script di esempio)
 DATA_START = date(2015, 1, 2)
 DATA_END = date(2024, 12, 31)
 SIM_START = date(2020, 1, 2)
+
+
+# ============================================================
+# Versione dati (per invalidazione cache Streamlit)
+# ============================================================
+
+def data_version() -> float | None:
+    """Restituisce il mtime del file di cache dei prezzi.
+
+    Usato come chiave aggiuntiva nella cache Streamlit: quando il file
+    cambia (aggiornamento dati, push), il mtime cambia e la cache si
+    invalida automaticamente senza bisogno di riavviare l'app.
+
+    Restituisce None se il file non esiste ancora.
+    """
+    cache_file = DEFAULT_CACHE_DIR / f"prices_{DATA_START}_{DATA_END}.parquet"
+    try:
+        return cache_file.stat().st_mtime
+    except FileNotFoundError:
+        return None
 
 
 # ============================================================
