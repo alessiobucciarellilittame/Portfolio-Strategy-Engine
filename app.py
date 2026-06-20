@@ -10,6 +10,8 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 
+from datetime import date
+
 from src.dashboard_data import (
     load_data,
     data_version,
@@ -22,6 +24,7 @@ from src.dashboard_data import (
     DashboardResult,
     ProfileComparison,
     PROFILE_ORDER,
+    DATA_END,
 )
 from src.profiles import load_profiles
 
@@ -112,6 +115,17 @@ with st.sidebar:
         help="Per il calcolo di costi e tasse (commissioni minime, bollo).",
     )
 
+    # Anno di partenza backtest
+    st.divider()
+    backtest_start_year = st.selectbox(
+        "Anno di partenza del backtest",
+        options=list(range(2015, DATA_END.year)),
+        index=5,  # 2020
+        help="La stima dei parametri usa sempre i dati completi. "
+             "Questo controllo cambia solo il periodo simulato nel backtest.",
+    )
+    sim_start = date(backtest_start_year, 1, 2)
+
     # Modalita' PAC
     st.divider()
     st.header("Modalita' investimento")
@@ -194,6 +208,7 @@ result: DashboardResult = build_portfolio(
     strategy_freq=strategy_freq,
     capital_eur=float(capital_eur),
     prices=bundle.prices,
+    sim_start=sim_start,
 )
 
 report = result.report
@@ -303,7 +318,7 @@ with tab3:
         st.markdown(
             f"Ribilanciamenti: {m['n_rebalances']} | "
             f"Turnover totale: {m['total_turnover']:.2f} | "
-            f"Periodo: 2020-01-02 / 2024-12-31"
+            f"Periodo: {sim_start} / {DATA_END}"
         )
 
         # Equity curve
@@ -336,12 +351,12 @@ if pac_active:
         def _build_pac(
             _params_hash, params, profile, horizon, crypto_w, sat_mode,
             strat_name, strat_freq, _prices_hash, prices,
-            contribution, pac_freq,
+            contribution, pac_freq, sim_start_,
         ):
             return build_pac_comparison(
                 params, profile, horizon, crypto_w, sat_mode,
                 strat_name, strat_freq, prices,
-                contribution, pac_freq,
+                contribution, pac_freq, sim_start=sim_start_,
             )
 
         try:
@@ -349,7 +364,7 @@ if pac_active:
                 returns_hash, params, profile_name, horizon_years,
                 crypto_weight, satellite_mode, strategy_name, strategy_freq,
                 prices_hash, bundle.prices,
-                float(pac_contribution), pac_frequency,
+                float(pac_contribution), pac_frequency, sim_start,
             )
 
             pac_s = pac_comp.summary["pac"]
@@ -481,11 +496,11 @@ with tab5:
     st.subheader("Confronto 5 profili")
 
     @st.cache_data(show_spinner="Costruzione confronto profili...")
-    def _build_comparison(_params_hash, params, horizon, _prices_hash, prices):
-        return build_profile_comparison(params, horizon, prices)
+    def _build_comparison(_params_hash, params, horizon, _prices_hash, prices, sim_start_):
+        return build_profile_comparison(params, horizon, prices, sim_start=sim_start_)
 
     prices_hash = hash(bundle.prices.values.tobytes())
-    comp = _build_comparison(returns_hash, params, horizon_years, prices_hash, bundle.prices)
+    comp = _build_comparison(returns_hash, params, horizon_years, prices_hash, bundle.prices, sim_start)
 
     # Tabella
     comp_rows = []

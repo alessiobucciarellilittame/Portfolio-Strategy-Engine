@@ -138,6 +138,7 @@ def build_portfolio(
     strategy_freq: str,
     capital_eur: float,
     prices: pd.DataFrame,
+    sim_start: date = SIM_START,
 ) -> DashboardResult:
     """Costruisce il portafoglio completo con backtest, costi e report.
 
@@ -180,7 +181,7 @@ def build_portfolio(
 
     # Backtest
     weights = cs.combined_weights if cs else pr.portfolio.weights
-    prices_sim = prices.loc[str(SIM_START):str(DATA_END)]
+    prices_sim = prices.loc[str(sim_start):str(DATA_END)]
     bt = None
     if len(prices_sim) > 10:
         try:
@@ -239,12 +240,13 @@ def build_profile_comparison(
     params: ParameterEstimate,
     horizon_years: int,
     prices: pd.DataFrame,
+    sim_start: date = SIM_START,
 ) -> ProfileComparison:
     """Costruisce il confronto tra tutti e 5 i profili."""
     ac_map = load_universe()["asset_class"].to_dict()
     results = build_all_profiles(params, horizon_years=horizon_years, asset_class_map=ac_map)
 
-    prices_sim = prices.loc[str(SIM_START):str(DATA_END)]
+    prices_sim = prices.loc[str(sim_start):str(DATA_END)]
     strategy = PeriodicRebalance(frequency="quarterly")
 
     names, vols, rets, sharpes, mdds, class_allocs = [], [], [], [], [], []
@@ -315,6 +317,7 @@ def build_pac_comparison(
     prices: pd.DataFrame,
     contribution: float,
     pac_frequency: str,
+    sim_start: date = SIM_START,
 ) -> PacComparison:
     """Costruisce il confronto PAC vs somma unica.
 
@@ -351,7 +354,7 @@ def build_pac_comparison(
     else:
         strategy = PeriodicRebalance(frequency=strategy_freq)
 
-    prices_sim = prices.loc[str(SIM_START):str(DATA_END)]
+    prices_sim = prices.loc[str(sim_start):str(DATA_END)]
 
     return compare_pac_vs_lumpsum(
         prices_sim, weights, strategy,
