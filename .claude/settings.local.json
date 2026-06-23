@@ -42,7 +42,8 @@
       "Bash(.venv/bin/python -m pytest tests/ -v --ignore=tests/test_pac.py)",
       "Bash(.venv/bin/python -m pytest tests/ -v --tb=short)",
       "Bash(.venv/bin/python -m pytest tests/test_data_version.py -v 2>&1)",
-      "Bash(.venv/bin/python -m pytest tests/ --tb=short)"
+      "Bash(.venv/bin/python -m pytest tests/ --tb=short)",
+      "Bash(git:*)"
     ]
   }
 }
