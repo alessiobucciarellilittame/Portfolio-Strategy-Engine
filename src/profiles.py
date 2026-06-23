@@ -30,8 +30,8 @@ from .optimizer import (
 from .estimation import (
     ParameterEstimate,
     filter_params,
-    get_crypto_tickers,
-    CRYPTO_ASSET_CLASS,
+    get_satellite_tickers,
+    SATELLITE_ASSET_CLASSES,
 )
 
 logger = logging.getLogger(__name__)
@@ -163,11 +163,11 @@ def profile_to_constraints(
         f"vol_ceiling {profile.vol_ceiling} * {vol_factor} = {effective_vol}"
     )
 
-    # Escludi il vincolo crypto: le cripto non entrano nell'ottimizzatore
-    # (gestite separatamente dal satellite in core_satellite)
+    # Escludi i vincoli delle classi satellite: non entrano nell'ottimizzatore
+    # (gestite separatamente come satellite esplicito in core_satellite)
     core_group_limits = {
         k: v for k, v in profile.group_limits.items()
-        if k != CRYPTO_ASSET_CLASS
+        if k not in SATELLITE_ASSET_CLASSES
     }
 
     constraints = PortfolioConstraints(
@@ -202,13 +202,13 @@ def build_portfolio_for_profile(
         profile, horizon_years, adjustments
     )
 
-    # Filtra le cripto dai parametri: il core si ottimizza solo su tradizionali
+    # Filtra le classi satellite dai parametri: il core si ottimizza solo su tradizionali
     if asset_class_map is not None:
-        crypto_set = get_crypto_tickers(params.tickers, asset_class_map)
-        if crypto_set:
-            params = filter_params(params, crypto_set)
-            logger.info(f"Profilo '{profile.name}': escluse cripto dal core: "
-                        f"{sorted(crypto_set)}")
+        sat_set = get_satellite_tickers(params.tickers, asset_class_map)
+        if sat_set:
+            params = filter_params(params, sat_set)
+            logger.info(f"Profilo '{profile.name}': escluse classi satellite dal core: "
+                        f"{sorted(sat_set)}")
 
     # Seleziona l'obiettivo
     objective = get_objective(profile.objective)

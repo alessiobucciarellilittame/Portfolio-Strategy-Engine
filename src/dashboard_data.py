@@ -150,6 +150,8 @@ def build_portfolio(
     capital_eur: float,
     prices: pd.DataFrame,
     sim_start: date = SIM_START,
+    stock_weight: float = 0.0,
+    stock_tickers: dict[str, float] | None = None,
 ) -> DashboardResult:
     """Costruisce il portafoglio completo con backtest, costi e report.
 
@@ -163,18 +165,22 @@ def build_portfolio(
         strategy_freq: frequenza ribilanciamento ("monthly", "quarterly", "annual")
         capital_eur: capitale di riferimento in EUR per costi/tasse
         prices: prezzi puliti (per il backtest)
+        stock_weight: quota satellite azioni singole (0.0 - tetto profilo)
+        stock_tickers: composizione satellite stock {ticker: peso_relativo}
     """
     profiles = load_profiles()
     profile = profiles[profile_name]
     ac_map = load_universe()["asset_class"].to_dict()
 
-    # Core-satellite (se crypto > 0)
+    # Core-satellite (se qualunque satellite > 0)
     cs = None
-    if crypto_weight > 0:
+    if crypto_weight > 0 or stock_weight > 0:
         cs = build_core_satellite(
             profile, params, ac_map,
             crypto_weight=crypto_weight,
             horizon_years=horizon_years,
+            stock_weight=stock_weight,
+            stock_tickers=stock_tickers,
         )
         pr = cs.profile_result
     else:
@@ -354,8 +360,9 @@ def build_view_impact(
     cov = params_base.cov
     tickers = list(params_base.tickers)
 
-    # Filtra a core (no crypto)
-    core_tickers = [t for t in tickers if ac_map.get(t) != "crypto"]
+    # Filtra a core (no classi satellite)
+    from .estimation import SATELLITE_ASSET_CLASSES
+    core_tickers = [t for t in tickers if ac_map.get(t) not in SATELLITE_ASSET_CLASSES]
     core_idx = [tickers.index(t) for t in core_tickers]
     core_cov = cov[np.ix_(core_idx, core_idx)]
 
@@ -446,6 +453,8 @@ def build_pac_comparison(
     contribution: float,
     pac_frequency: str,
     sim_start: date = SIM_START,
+    stock_weight: float = 0.0,
+    stock_tickers: dict[str, float] | None = None,
 ) -> PacComparison:
     """Costruisce il confronto PAC vs somma unica.
 
@@ -460,11 +469,13 @@ def build_pac_comparison(
 
     # Calcola i pesi target (stessa logica di build_portfolio)
     cs = None
-    if crypto_weight > 0:
+    if crypto_weight > 0 or stock_weight > 0:
         cs = build_core_satellite(
             profile, params, ac_map,
             crypto_weight=crypto_weight,
             horizon_years=horizon_years,
+            stock_weight=stock_weight,
+            stock_tickers=stock_tickers,
         )
         pr = cs.profile_result
     else:

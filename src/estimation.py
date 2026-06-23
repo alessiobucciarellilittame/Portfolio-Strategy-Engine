@@ -67,6 +67,11 @@ class ParameterEstimate:
 
 
 CRYPTO_ASSET_CLASS = "crypto"
+STOCK_ASSET_CLASS = "stock"
+
+# Classi satellite: non entrano nell'ottimizzatore del core.
+# Gestite come satellite esplicito in core_satellite.py.
+SATELLITE_ASSET_CLASSES: frozenset[str] = frozenset({"crypto", "stock"})
 
 
 def filter_params(
@@ -75,8 +80,8 @@ def filter_params(
 ) -> "ParameterEstimate":
     """Crea un ParameterEstimate escludendo i ticker specificati.
 
-    Usato da profiles e core_satellite per rimuovere le cripto
-    dall'ottimizzazione (le cripto entrano solo come satellite).
+    Usato da profiles e core_satellite per rimuovere le classi satellite
+    dall'ottimizzazione (entrano solo come satellite esplicito).
     """
     keep_idx = [
         i for i, t in enumerate(params.tickers)
@@ -106,6 +111,17 @@ def get_crypto_tickers(
     return {
         t for t in tickers
         if asset_class_map.get(t) == CRYPTO_ASSET_CLASS
+    }
+
+
+def get_satellite_tickers(
+    tickers: list[str],
+    asset_class_map: dict[str, str],
+) -> set[str]:
+    """Restituisce i ticker di TUTTE le classi satellite (crypto, stock, ...)."""
+    return {
+        t for t in tickers
+        if asset_class_map.get(t) in SATELLITE_ASSET_CLASSES
     }
 
 

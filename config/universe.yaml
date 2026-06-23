@@ -117,3 +117,27 @@ instruments:
   # Riaggiungibile quando avra' storia sufficiente dal 2015, oppure se si
   # accetta una finestra piu' corta. Basta re-inserire la riga e riscaricare
   # la cache (refresh_cache=True).
+
+  # --- Azioni singole (satellite, non ottimizzabili) ---
+  # Le azioni con asset_class "stock" NON entrano nell'ottimizzatore del core.
+  # Sono gestite come satellite esplicito opt-in (come le cripto).
+  # REQUISITI per aggiungere un titolo:
+  #   1. Storia dal ~2015 (per non accorciare la finestra di stima)
+  #   2. asset_class: "stock"
+  #   3. Valuta e regione corrette
+  # Per aggiungere: inserire la riga qui e riscaricare la cache (refresh_cache=True).
+  #
+  # Esempi (decommentare per usare):
+  # - ticker: "ENEL.MI"
+  #   name: "Enel SpA"
+  #   asset_class: "stock"
+  #   region: "europe"
+  #   currency: "EUR"
+  #   ter: 0.00
+  #
+  # - ticker: "ENI.MI"
+  #   name: "Eni SpA"
+  #   asset_class: "stock"
+  #   region: "europe"
+  #   currency: "EUR"
+  #   ter: 0.00

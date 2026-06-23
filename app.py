@@ -149,6 +149,47 @@ with st.sidebar:
         st.info("Profilo conservativo: cripto non disponibile.")
     satellite_mode = "btc"
 
+    # Satellite azionario (azioni singole)
+    max_stock = profiles_cfg[profile_name].group_limits.get("stock", (0, 0))[1]
+    stock_weight = 0.0
+    stock_tickers_input: dict[str, float] | None = None
+    if max_stock > 0:
+        st.divider()
+        st.subheader("Satellite azionario")
+        st.caption(
+            "Le azioni singole sono rischio concentrato, scelto dall'utente, "
+            "fuori dall'ottimizzazione. Richiedono asset_class 'stock' nell'universo."
+        )
+        # Trova i ticker stock disponibili
+        stock_available = [
+            t for t, ac in ac_map.items() if ac == "stock"
+        ] if 'ac_map' in dir() else []
+        if not stock_available:
+            st.info(
+                "Nessuna azione singola nell'universo. Per aggiungerne, "
+                "inserire strumenti con asset_class 'stock' in config/universe.yaml "
+                "e riscaricare i dati."
+            )
+        else:
+            stock_selected = st.multiselect(
+                "Azioni singole",
+                options=stock_available,
+                default=[],
+                key="stock_select",
+            )
+            if stock_selected:
+                stock_weight = st.slider(
+                    "Quota satellite azionario",
+                    min_value=0.0,
+                    max_value=float(max_stock),
+                    value=0.0,
+                    step=0.01,
+                    format="%.0f%%",
+                    help=f"Tetto profilo: {max_stock:.0%}. Equal-weight tra le azioni selezionate.",
+                )
+                if stock_weight > 0:
+                    stock_tickers_input = {t: 1.0 for t in stock_selected}
+
     # Strategia
     strategy_name = st.selectbox(
         "Strategia",
@@ -272,6 +313,8 @@ result: DashboardResult = build_portfolio(
     capital_eur=float(capital_eur),
     prices=bundle.prices,
     sim_start=sim_start,
+    stock_weight=stock_weight,
+    stock_tickers=stock_tickers_input,
 )
 
 report = result.report
@@ -302,11 +345,17 @@ tab6 = all_tabs[tab_idx["Report PDF"]]
 with tab1:
     st.subheader(f"Allocazione raccomandata — {profile_name.capitalize()}")
 
-    if result.core_satellite and crypto_weight > 0:
+    if result.core_satellite and (crypto_weight > 0 or stock_weight > 0):
+        sat_parts = []
+        if result.core_satellite.crypto_weight_actual > 0:
+            sat_parts.append(f"cripto {result.core_satellite.crypto_weight_actual:.0%}")
+        if result.core_satellite.stock_weight_actual > 0:
+            sat_parts.append(f"azioni {result.core_satellite.stock_weight_actual:.0%}")
+        total_sat = result.core_satellite.crypto_weight_actual + result.core_satellite.stock_weight_actual
         st.info(
             f"Architettura core-satellite: core tradizionale "
-            f"({1 - report.satellite_weight:.0%}) + satellite cripto "
-            f"({report.satellite_weight:.0%})."
+            f"({1 - total_sat:.0%}) + satellite "
+            f"({' + '.join(sat_parts)})."
         )
 
     # Tabella strumenti
