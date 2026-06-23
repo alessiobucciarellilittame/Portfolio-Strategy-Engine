@@ -1,0 +1,96 @@
+# Configurazione Black-Litterman
+#
+# Black-Litterman parte da un portafoglio di EQUILIBRIO e ne ricava i
+# rendimenti impliciti (reverse optimization). Aggiungendo view soggettive
+# si ottiene un mu posteriore stabile e inclinabile.
+#
+# Tutto opzionale: senza questo file, BL usa i default qui sotto.
+
+# --- Pesi di equilibrio per asset class ---
+# Split MACRO tra classi. NON cambia tra equal e market_cap:
+# vogliamo isolare la distribuzione DENTRO la classe, non tra classi.
+equilibrium_weights:
+  equity: 0.60
+  bond: 0.35
+  commodity: 0.05
+
+# --- Distribuzione dentro la classe ---
+# "equal":      equal-weight tra tutti i membri della classe.
+# "market_cap": usa market_cap_weights per gli asset con peso esplicito;
+#               gli altri nella stessa classe ricevono peso 0.
+#               Peso 0 NON li esclude dall'ottimizzazione: ricevono un
+#               rendimento implicito sensato via Pi = delta * Sigma * w_eq.
+within_class_weighting: "equal"
+
+# Pesi market-cap per la modalita' "market_cap".
+# Equity: solo fondi BROAD non sovrapposti per evitare double-counting.
+#   SWDA = MSCI World (sviluppati, ~70% USA internamente)
+#   EIMI = MSCI EM
+#   Split ~88/12 riflette la cap relativa developed/emerging.
+#   I fondi regionali (CSSPX, EQQQ, SXR8, SMEA, SJPA) NON compaiono:
+#   sono strumenti per tilt/view, non parte del "mercato neutrale".
+# Bond e commodity: non specificati -> equal-weight (fallback automatico).
+market_cap_weights:
+  SWDA.MI: 0.88
+  EIMI.MI: 0.12
+
+# --- Parametri del modello ---
+# mu_target: rendimento atteso annuo del benchmark di equilibrio.
+# Usato per calibrare delta (risk aversion) se non fornito esplicitamente.
+mu_target: 0.055   # 5.5% annuo
+
+# tau: scalare di incertezza sul prior (piu' piccolo = prior piu' forte).
+# Valori tipici 0.01-0.10. Default conservativo.
+tau: 0.05
+
+# delta: risk aversion. Se null, viene calibrato come:
+#   delta = (mu_target - rf) / sigma^2_eq
+# dove sigma^2_eq = w_eq' * Sigma * w_eq
+delta: null
+
+# --- View soggettive ---
+# Lista di view. La lista puo' essere VUOTA: in tal caso mu_BL = Pi + rf (equilibrio).
+#
+# CONVENZIONE: le view assolute sono espresse come RENDIMENTO TOTALE atteso
+# (NON rendimento in eccesso). Es. "CSSPX.MI rende il 7% annuo totale"
+# include gia' il risk-free. Una view = Pi+rf non muove mu_BL.
+# Le view relative sono spread e non risentono di rf.
+#
+# Schema consigliato (nuovo):
+#   View assoluta:
+#     type: "absolute"
+#     instrument: "EQQQ.DE"         # singolo ticker
+#     expected_return: 0.11          # rendimento totale annuo atteso
+#     confidence: 0.60               # [0, 1] — 0=ignora, 1=vincolante
+#
+#   View relativa:
+#     type: "relative"
+#     long: "CSSPX.MI"              # ticker che sovraperforma
+#     short: "SXR8.DE"              # ticker che sottoperforma
+#     outperformance: 0.02           # spread annuo atteso
+#     confidence: 0.50               # [0, 1]
+#
+# Schema legacy (ancora supportato):
+#   - type: "absolute"
+#     assets: ["CSSPX.MI"]          # lista di ticker
+#     value: 0.07                    # rendimento totale annuo
+#     confidence: 60                 # [0, 100] — normalizzato internamente
+#   - type: "relative"
+#     long_assets: ["CSSPX.MI"]
+#     short_assets: ["SXR8.DE"]
+#     value: 0.02
+#     confidence: 50
+views: []
+
+# Esempi di view (decommentare per usare):
+# views:
+#   - type: "absolute"
+#     instrument: "EQQQ.DE"
+#     expected_return: 0.11
+#     confidence: 0.60
+#
+#   - type: "relative"
+#     long: "CSSPX.MI"
+#     short: "SXR8.DE"
+#     outperformance: 0.02
+#     confidence: 0.50

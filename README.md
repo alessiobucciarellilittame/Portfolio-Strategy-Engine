@@ -2,7 +2,7 @@
 
 Motore di strategia di investimento: dal profilo dell'investitore a un portafoglio ottimizzato con backtest walk-forward. Universo multi-asset in EUR (ETF UCITS azionari, obbligazionari, oro, cripto).
 
-Pipeline completa: dati -> stima parametri (mu/Sigma) -> ottimizzazione -> profilazione cliente -> strategie di ribilanciamento -> backtest walk-forward, con architettura core-satellite per le cripto.
+Pipeline completa: dati -> stima parametri (mu/Sigma) -> ottimizzazione -> profilazione cliente -> strategie di ribilanciamento -> backtest walk-forward, con architettura core-satellite per le cripto. Stima mu: Bayes-Stein (default, shrinkage storico) o Black-Litterman (equilibrio market-cap + view soggettive opzionali con confidenza Idzorek).
 
 ## Installazione
 
@@ -53,6 +53,7 @@ src/
   cache.py            Caching Parquet locale
   estimation.py       Pipeline stima parametri e ParameterEstimate
   mean_estimators.py  Stimatori mu (historical, James-Stein, Bayes-Stein)
+  black_litterman.py  Black-Litterman: equilibrio market-cap + view soggettive (Idzorek)
   cov_estimators.py   Stimatori Sigma (sample, Ledoit-Wolf, OAS)
   optimizer.py        Ottimizzazione portafoglio (MinVar, MaxSharpe, MaxReturn, MinCVaR)
   frontier.py         Frontiera efficiente
@@ -69,6 +70,7 @@ app.py                Dashboard Streamlit (Fase 9)
 config/
   universe.yaml       Universo strumenti (10 ETF UCITS + cripto)
   profiles.yaml       Profili investitore (conservativo -> aggressivo)
+  black_litterman.yaml Configurazione Black-Litterman (equilibrio, view, tau)
   costs_tax.yaml      Configurazione costi e fiscalita'
 tests/                Test automatici
 cache/                Dati scaricati (Parquet)
@@ -88,6 +90,7 @@ python scripts/example_strategies.py       # Strategie: buy&hold vs ribilanciame
 python scripts/example_walkforward.py      # Walk-forward: backtest con ri-stima rolling
 python scripts/example_core_satellite.py   # Core-satellite: core tradizionale + satellite cripto
 python scripts/example_ritocchi.py         # CVaR storico vs parametrico, risk-free configurabile
+python scripts/example_black_litterman.py # Black-Litterman: equilibrio + view assolute/relative
 ```
 
 ## Profili investitore

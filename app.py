@@ -19,10 +19,12 @@ from src.dashboard_data import (
     build_portfolio,
     build_profile_comparison,
     build_pac_comparison,
+    build_view_impact,
     can_render_pdf,
     generate_pdf_bytes,
     DashboardResult,
     ProfileComparison,
+    ViewImpact,
     PROFILE_ORDER,
     DATA_END,
 )
@@ -68,6 +70,67 @@ with st.sidebar:
     )
 
     horizon_years = st.slider("Orizzonte temporale (anni)", 1, 20, 5)
+
+    # Metodo di stima
+    mean_method = st.selectbox(
+        "Metodo stima rendimenti",
+        ["bayes_stein", "black_litterman"],
+        index=0,
+        format_func=lambda x: {
+            "bayes_stein": "Bayes-Stein (storico)",
+            "black_litterman": "Black-Litterman (equilibrio)",
+        }[x],
+        help="Bayes-Stein: shrinkage delle medie storiche. "
+             "Black-Litterman: rendimenti impliciti da un benchmark di equilibrio.",
+    )
+
+    # View Black-Litterman (visibile solo con BL)
+    bl_views: list[dict] = []
+    if mean_method == "black_litterman":
+        st.divider()
+        st.subheader("View soggettive")
+        n_views = st.number_input("Numero di view", 0, 5, 0, key="n_views")
+        for vi in range(int(n_views)):
+            st.markdown(f"**View {vi + 1}**")
+            vtype = st.selectbox(
+                "Tipo", ["absolute", "relative"],
+                key=f"vtype_{vi}",
+                format_func=lambda x: "Assoluta" if x == "absolute" else "Relativa",
+            )
+            if vtype == "absolute":
+                instr = st.text_input("Ticker", key=f"vinstr_{vi}", placeholder="es. EQQQ.DE")
+                exp_ret = st.number_input(
+                    "Rendimento atteso annuo", value=0.08, step=0.01,
+                    format="%.2f", key=f"vret_{vi}",
+                )
+                conf = st.slider(
+                    "Confidenza", 0.05, 0.95, 0.50, 0.05, key=f"vconf_{vi}",
+                )
+                if instr.strip():
+                    bl_views.append({
+                        "type": "absolute",
+                        "instrument": instr.strip(),
+                        "expected_return": exp_ret,
+                        "confidence": conf,
+                    })
+            else:
+                long_t = st.text_input("Long ticker", key=f"vlong_{vi}", placeholder="es. CSSPX.MI")
+                short_t = st.text_input("Short ticker", key=f"vshort_{vi}", placeholder="es. SXR8.DE")
+                outperf = st.number_input(
+                    "Outperformance attesa", value=0.02, step=0.01,
+                    format="%.2f", key=f"voutp_{vi}",
+                )
+                conf = st.slider(
+                    "Confidenza", 0.05, 0.95, 0.50, 0.05, key=f"vconf_{vi}",
+                )
+                if long_t.strip() and short_t.strip():
+                    bl_views.append({
+                        "type": "relative",
+                        "long": long_t.strip(),
+                        "short": short_t.strip(),
+                        "outperformance": outperf,
+                        "confidence": conf,
+                    })
 
     # Cripto
     max_crypto = profiles_cfg[profile_name].group_limits.get("crypto", (0, 0))[1]
@@ -174,8 +237,8 @@ def _load_data(refresh: bool, _data_version):
 
 
 @st.cache_data(show_spinner="Stima parametri mu/Sigma...")
-def _estimate_params(_returns_hash, returns):
-    return estimate_params(returns)
+def _estimate_params(_returns_hash, returns, mean_method_, ac_map_):
+    return estimate_params(returns, mean_method=mean_method_, asset_class_map=ac_map_)
 
 
 try:
@@ -190,8 +253,8 @@ except FileNotFoundError:
 
 returns_hash = hash(bundle.returns.values.tobytes())
 prices_hash = hash(bundle.prices.values.tobytes())
-params = _estimate_params(returns_hash, bundle.returns)
 ac_map = bundle.universe["asset_class"].to_dict()
+params = _estimate_params(returns_hash, bundle.returns, mean_method, ac_map)
 
 
 # ============================================================
@@ -217,16 +280,23 @@ report = result.report
 # Output: tab organizzate
 # ============================================================
 
+tab_names = ["Allocazione", "Rischio/Rendimento", "Backtest"]
 if pac_active:
-    tab1, tab2, tab3, tab_pac, tab4, tab5, tab6 = st.tabs([
-        "Allocazione", "Rischio/Rendimento", "Backtest",
-        "PAC vs Somma unica", "Costi e Tasse", "Confronto Profili", "Report PDF",
-    ])
-else:
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-        "Allocazione", "Rischio/Rendimento", "Backtest",
-        "Costi e Tasse", "Confronto Profili", "Report PDF",
-    ])
+    tab_names.append("PAC vs Somma unica")
+if bl_views:
+    tab_names.append("Impatto View BL")
+tab_names.extend(["Costi e Tasse", "Confronto Profili", "Report PDF"])
+
+all_tabs = st.tabs(tab_names)
+tab_idx = {name: i for i, name in enumerate(tab_names)}
+tab1 = all_tabs[tab_idx["Allocazione"]]
+tab2 = all_tabs[tab_idx["Rischio/Rendimento"]]
+tab3 = all_tabs[tab_idx["Backtest"]]
+tab_pac = all_tabs[tab_idx["PAC vs Somma unica"]] if pac_active else None
+tab_bl_views = all_tabs[tab_idx["Impatto View BL"]] if bl_views else None
+tab4 = all_tabs[tab_idx["Costi e Tasse"]]
+tab5 = all_tabs[tab_idx["Confronto Profili"]]
+tab6 = all_tabs[tab_idx["Report PDF"]]
 
 # --- Tab 1: Allocazione ---
 with tab1:
@@ -338,7 +408,7 @@ with tab3:
 
 
 # --- Tab PAC: confronto PAC vs somma unica ---
-if pac_active:
+if pac_active and tab_pac is not None:
     with tab_pac:
         st.subheader("PAC vs Somma unica")
         st.caption(
@@ -429,6 +499,66 @@ if pac_active:
 
         except Exception as e:
             st.error(f"Errore nella simulazione PAC: {e}")
+
+
+# --- Tab View BL: impatto delle view ---
+if bl_views and tab_bl_views is not None:
+    with tab_bl_views:
+        st.subheader("Impatto delle view Black-Litterman")
+
+        try:
+            vi = build_view_impact(
+                bundle.returns, bl_views,
+                profile_name=profile_name,
+                horizon_years=horizon_years,
+            )
+
+            if vi.validation_errors:
+                for err in vi.validation_errors:
+                    st.warning(err)
+
+            # Tabella mu
+            st.markdown("**Rendimenti attesi annui (%)**")
+            mu_rows = []
+            for t in vi.tickers:
+                mu_rows.append({
+                    "Ticker": t,
+                    "Equilibrio": f"{vi.mu_equilibrium[t]:.2%}",
+                    "Con view": f"{vi.mu_posterior[t]:.2%}",
+                    "Delta": f"{vi.mu_delta[t]:+.2%}",
+                })
+            st.dataframe(pd.DataFrame(mu_rows), use_container_width=True, hide_index=True)
+
+            # Grafico delta mu
+            st.markdown("**Variazione rendimenti attesi (pp)**")
+            delta_mu_df = pd.DataFrame({
+                "Ticker": vi.tickers,
+                "Delta mu (pp)": [vi.mu_delta[t] * 100 for t in vi.tickers],
+            }).set_index("Ticker")
+            st.bar_chart(delta_mu_df)
+
+            # Tabella pesi
+            st.markdown("**Allocazione (%)**")
+            w_rows = []
+            for t in vi.tickers:
+                w_eq = vi.w_equilibrium.get(t, 0)
+                w_post = vi.w_posterior.get(t, 0)
+                if abs(w_eq) > 0.001 or abs(w_post) > 0.001:
+                    w_rows.append({
+                        "Ticker": t,
+                        "Senza view": f"{w_eq:.1%}",
+                        "Con view": f"{w_post:.1%}",
+                        "Delta": f"{vi.w_delta[t]:+.1%}",
+                    })
+            st.dataframe(pd.DataFrame(w_rows), use_container_width=True, hide_index=True)
+
+            # Summary
+            st.markdown("**Riepilogo**")
+            for s in vi.summary:
+                st.markdown(f"- {s}")
+
+        except Exception as e:
+            st.error(f"Errore nel calcolo dell'impatto view: {e}")
 
 
 # --- Tab 4: Costi e Tasse ---

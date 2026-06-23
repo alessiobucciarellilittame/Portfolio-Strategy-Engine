@@ -211,7 +211,32 @@ Quando scriveremo il prompt, dovrà richiedere esplicitamente:
 - Refinement C (coerenza profili/core-satellite) — completato: `build_portfolio_for_profile()` esclude automaticamente le cripto dall'ottimizzazione, identico a `build_core_satellite(crypto_weight=0)`. `filter_params()` centralizzata in `estimation.py`. Equity profili ~21/38/58/72/85%, vol 5/7/10/12/14%.
 - Refinement D (fix test annualizzazione) — completato: `test_annualization_synthetic_known` usava `pd.bdate_range` con 100k periodi che sfora il limite Timestamp pandas; sostituito con `RangeIndex`.
 - Refinement E (docstring Sharpe) — completato: docstring di `compute_metrics()` allineata al risk-free centralizzato (non più "rf=0").
-- **PROSSIMO: Fase 7 (reportistica).**
+- Fase 7 (reportistica) — completata e validata.
+- Fase 8 (costi reali e fiscalità) — completata e validata.
+- Fase 9 (dashboard Streamlit) — completata e validata.
+- **Black-Litterman** — completato e validato (342 test, 7 skip rete/weasyprint):
+  - Upgrade della stima μ: oltre a Bayes-Stein (storico), ora disponibile Black-Litterman
+    (rendimenti impliciti di equilibrio + view soggettive opzionali).
+  - Equilibrio market-cap: pesi macro per classe (equity 60%, bond 35%, commodity 5%),
+    distribuzione dentro la classe in modalità equal-weight o market-cap.
+    Market-cap usa solo fondi broad non sovrapposti (SWDA 88% + EIMI 12% come World+EM);
+    i fondi regionali (CSSPX, EQQQ, SXR8, SMEA, SJPA) ricevono w_eq=0 per evitare
+    double-counting USA, ma restano nell'ottimizzazione (ricevono Π sensato via δΣw_eq).
+  - Strato view manuali: assolute e relative con confidenza Idzorek (forma chiusa).
+    Proprietà verificata a precisione macchina: la confidenza controlla linearmente quanto
+    mu si muove dall'equilibrio verso la view.
+    Schema nuovo leggibile (instrument/expected_return/long/short/outperformance, conf [0,1])
+    + backward-compatible con lo schema legacy (assets/value, conf [0,100]).
+    Validazione, pannello interattivo nella dashboard, script di esempio.
+  - **FINDING walk-forward 2020-2024:** Bayes-Stein batte BL senza view su questo campione
+    (CAGR, Sharpe, MaxDD migliori). È strutturale: BL senza view appiattisce i mu verso
+    l'equilibrio, sottopesando i vincitori recenti (USA/tech). Il campione è un bull-run USA
+    e non è possibile testare il regime dove BL brillerebbe (mercato laterale o inversione
+    di leadership regionale). BL con view mirate può recuperare il gap.
+    Il vantaggio di BL è il ~50% di turnover in meno.
+  - Il **default di codice resta `bayes_stein`**: BL è opt-in dalla dashboard o da config.
+  - Il refinement N (tetto per regione) diventa superfluo: BL con equilibrio market-cap e/o
+    view relative gestisce la concentrazione regionale in modo più naturale e configurabile.
 
 > Nota di design emersa: con le cripto fuori dall'ottimizzatore, i core dei profili alti (Bilanciato/Dinamico/Aggressivo, vol 10/12/14%) sono vicini tra loro; la differenziazione vera tra i profili più alti viene dal satellite cripto (5/10/15%).
 
@@ -240,5 +265,5 @@ Decisioni prese durante lo sviluppo, da non perdere:
 
 ### Idee / ritocchi futuri (emersi durante l'uso)
 - **Periodo di backtest configurabile.** Oggi la simulazione parte da una data fissa (SIM_START = 2020-01-02). Aggiungere uno slider/parametro per scegliere da quale anno far partire il backtest (es. dal 2015), così si può vedere come sarebbe andata la strategia su finestre diverse. La stima dei parametri resta sui dati completi; cambia solo il tratto simulato.
-- **Tetto per regione / per singolo strumento.** L'ottimizzatore tende a concentrarsi sui vincitori storici: con EQQQ (Nasdaq) + CSSPX (S&P 500) entrambi al tetto del 30%, l'azionario USA arriva al ~60%. Valutare un guardrail per regione (o un max_weight più basso) per evitare scommesse troppo concentrate su un'unica area.
+- ~~**Tetto per regione / per singolo strumento.**~~ — superato da Black-Litterman: l'equilibrio market-cap e le view relative gestiscono la concentrazione regionale in modo più naturale.
 - **Auto-invalidazione della cache dati nella dashboard.** Streamlit (`@st.cache_data`) continua a servire i dati vecchi quando il file della cache cambia, richiedendo un riavvio/clear cache manuale (in locale e in cloud). Aggiungere un "contrassegno di versione" (es. hash/mtime del file parquet) come chiave della cache, così si invalida da sola quando i dati cambiano.

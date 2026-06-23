@@ -252,15 +252,20 @@ def estimate_parameters(
     cov_method: str = "ledoit_wolf",
     as_of: date | None = None,
     window_days: int | None = None,
+    asset_class_map: dict[str, str] | None = None,
+    bl_config=None,
 ) -> ParameterEstimate:
     """Pipeline completa di stima dei parametri.
 
     Parametri:
         returns: rendimenti giornalieri dal DataBundle
-        mean_method: nome dello stimatore di mu (historical, james_stein, bayes_stein)
+        mean_method: nome dello stimatore di mu (historical, james_stein, bayes_stein,
+                     black_litterman)
         cov_method: nome dello stimatore di cov (sample, ledoit_wolf, oas)
         as_of: data di riferimento (anti-lookahead)
         window_days: finestra in giorni di trading
+        asset_class_map: ticker -> asset_class (richiesto per black_litterman)
+        bl_config: configurazione Black-Litterman (opzionale, default da YAML)
 
     Restituisce:
         ParameterEstimate con mu, cov, tickers, metadata
@@ -289,11 +294,7 @@ def estimate_parameters(
     # 2. Ricava il fattore di annualizzazione dalla frequenza dei dati
     ann_factor = infer_ann_factor(ret)
 
-    # 3. Stima mu
-    mean_estimator = get_mean_estimator(mean_method)
-    mu_est = mean_estimator.estimate(ret, ann_factor)
-
-    # 4. Stima Sigma (+ sample per confronto condizionamento)
+    # 3. Stima Sigma (+ sample per confronto condizionamento)
     cov_estimator = get_cov_estimator(cov_method)
     cov_est = cov_estimator.estimate(ret, ann_factor)
 
@@ -304,28 +305,114 @@ def estimate_parameters(
         sample_est = SampleCovariance().estimate(ret, ann_factor)
         sample_cov_cond = sample_est.condition_number
 
-    # 5. Validazione
-    issues = validate_estimates(mu_est, cov_est, sample_cov_cond)
+    # 4. Stima mu
+    if mean_method == "black_litterman":
+        # Black-Litterman: mu da reverse optimization + view
+        from .black_litterman import run_black_litterman, load_bl_config, BLConfig
 
-    # 6. Assembla output
-    metadata = {
-        "mean_method": mean_method,
-        "cov_method": cov_method,
-        "mean_shrinkage": mu_est.shrinkage_intensity,
-        "cov_shrinkage": cov_est.shrinkage_intensity,
-        "ann_factor": ann_factor,
-        "n_observations": n_obs,
-        "date_start": str(ret.index[0].date()),
-        "date_end": str(ret.index[-1].date()),
-        "condition_number": cov_est.condition_number,
-        "condition_number_sample": sample_cov_cond,
-        "validation_issues": issues,
-    }
+        if asset_class_map is None:
+            raise ValueError(
+                "asset_class_map è richiesto per mean_method='black_litterman'"
+            )
 
-    return ParameterEstimate(
-        mu=mu_est.mu,
-        cov=cov_est.cov,
-        tickers=mu_est.tickers,
-        returns=ret.values,
-        metadata=metadata,
-    )
+        if bl_config is None:
+            bl_config = load_bl_config()
+
+        bl_result = run_black_litterman(
+            cov=cov_est.cov,
+            tickers=list(ret.columns),
+            asset_class_map=asset_class_map,
+            config=bl_config,
+        )
+
+        mu = bl_result.mu_bl
+        tickers = list(ret.columns)
+        mean_shrinkage = 0.0  # BL non usa shrinkage classico
+
+        # Validazione mu BL
+        issues = []
+        for i, ticker in enumerate(tickers):
+            if mu[i] < MU_WARN_LOW or mu[i] > MU_WARN_HIGH:
+                msg = (f"AVVISO: mu_BL di {ticker} = {mu[i]:.2%} "
+                       f"fuori range [{MU_WARN_LOW:.0%}, {MU_WARN_HIGH:.0%}]")
+                issues.append(msg)
+                logger.warning(msg)
+
+        # Check Sigma
+        eigenvalues = np.linalg.eigvalsh(cov_est.cov)
+        if eigenvalues.min() < -1e-8:
+            issues.append("ERRORE: Sigma non è PSD")
+
+        # Metadata BL
+        bl_metadata = {
+            "bl_delta": bl_result.delta,
+            "bl_tau": bl_result.tau,
+            "bl_mu_target": bl_result.mu_target,
+            "bl_w_eq": {t: float(bl_result.w_eq[i]) for i, t in enumerate(tickers)},
+            "bl_pi": {t: float(bl_result.pi[i]) for i, t in enumerate(tickers)},
+            "bl_mu_bl": {t: float(bl_result.mu_bl[i]) for i, t in enumerate(tickers)},
+            "bl_deviation": {
+                t: float(bl_result.mu_bl[i] - bl_result.pi[i])
+                for i, t in enumerate(tickers)
+            },
+            "bl_n_views": bl_result.views_P.shape[0] if bl_result.views_P is not None else 0,
+        }
+        if bl_result.posterior_cov is not None:
+            bl_metadata["bl_posterior_cov_diag"] = {
+                t: float(bl_result.posterior_cov[i, i])
+                for i, t in enumerate(tickers)
+            }
+
+        metadata = {
+            "mean_method": mean_method,
+            "cov_method": cov_method,
+            "mean_shrinkage": mean_shrinkage,
+            "cov_shrinkage": cov_est.shrinkage_intensity,
+            "ann_factor": ann_factor,
+            "n_observations": n_obs,
+            "date_start": str(ret.index[0].date()),
+            "date_end": str(ret.index[-1].date()),
+            "condition_number": cov_est.condition_number,
+            "condition_number_sample": sample_cov_cond,
+            "validation_issues": issues,
+            **bl_metadata,
+        }
+
+        return ParameterEstimate(
+            mu=mu,
+            cov=cov_est.cov,
+            tickers=tickers,
+            returns=ret.values,
+            metadata=metadata,
+        )
+
+    else:
+        # Stimatori classici (historical, james_stein, bayes_stein)
+        mean_estimator = get_mean_estimator(mean_method)
+        mu_est = mean_estimator.estimate(ret, ann_factor)
+
+        # 5. Validazione
+        issues = validate_estimates(mu_est, cov_est, sample_cov_cond)
+
+        # 6. Assembla output
+        metadata = {
+            "mean_method": mean_method,
+            "cov_method": cov_method,
+            "mean_shrinkage": mu_est.shrinkage_intensity,
+            "cov_shrinkage": cov_est.shrinkage_intensity,
+            "ann_factor": ann_factor,
+            "n_observations": n_obs,
+            "date_start": str(ret.index[0].date()),
+            "date_end": str(ret.index[-1].date()),
+            "condition_number": cov_est.condition_number,
+            "condition_number_sample": sample_cov_cond,
+            "validation_issues": issues,
+        }
+
+        return ParameterEstimate(
+            mu=mu_est.mu,
+            cov=cov_est.cov,
+            tickers=mu_est.tickers,
+            returns=ret.values,
+            metadata=metadata,
+        )

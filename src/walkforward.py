@@ -102,6 +102,7 @@ def decide_weights(
     cov_method: str = "ledoit_wolf",
     window_type: str = "rolling",
     window_days: int | None = 756,
+    bl_config=None,
 ) -> tuple[dict[str, float] | None, list[str]]:
     """Decide i pesi target usando SOLO dati con data < as_of.
 
@@ -119,6 +120,7 @@ def decide_weights(
         cov_method: stimatore covarianza
         window_type: "rolling" o "expanding"
         window_days: finestra rolling in giorni di trading (solo per rolling)
+        bl_config: configurazione Black-Litterman (opzionale)
 
     Restituisce:
         (weights_dict, validation_issues) o (None, issues) se infeasible.
@@ -136,6 +138,8 @@ def decide_weights(
             cov_method=cov_method,
             as_of=cutoff.date(),
             window_days=effective_window,
+            asset_class_map=asset_class_map,
+            bl_config=bl_config,
         )
 
         result = build_portfolio_for_profile(
@@ -169,6 +173,7 @@ def run_walkforward(
     window_days: int | None = 756,
     initial_capital: float = 100.0,
     tx_cost_bps: float = 10,
+    bl_config=None,
 ) -> WalkForwardResult:
     """Esegue il backtest walk-forward.
 
@@ -233,6 +238,7 @@ def run_walkforward(
                 horizon_years=horizon_years,
                 mean_method=mean_method, cov_method=cov_method,
                 window_type=window_type, window_days=window_days,
+                bl_config=bl_config,
             )
 
             if issues:
@@ -291,6 +297,7 @@ def run_walkforward(
                 horizon_years=horizon_years,
                 mean_method=mean_method, cov_method=cov_method,
                 window_type=window_type, window_days=window_days,
+                bl_config=bl_config,
             )
 
             if issues:

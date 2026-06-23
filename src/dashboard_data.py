@@ -53,6 +53,12 @@ from .pac import (
     PacResult,
     PacComparison,
 )
+from .black_litterman import (
+    BLConfig,
+    load_bl_config,
+    run_black_litterman,
+    validate_views,
+)
 from .universe import load_universe
 
 from .cache import DEFAULT_CACHE_DIR
@@ -104,12 +110,17 @@ def load_data(refresh: bool = False) -> DataBundle:
     )
 
 
-def estimate_params(returns: pd.DataFrame) -> ParameterEstimate:
-    """Stima parametri mu/Sigma con Bayes-Stein / Ledoit-Wolf."""
+def estimate_params(
+    returns: pd.DataFrame,
+    mean_method: str = "bayes_stein",
+    asset_class_map: dict[str, str] | None = None,
+) -> ParameterEstimate:
+    """Stima parametri mu/Sigma."""
     return estimate_parameters(
         returns,
-        mean_method="bayes_stein",
+        mean_method=mean_method,
         cov_method="ledoit_wolf",
+        asset_class_map=asset_class_map,
     )
 
 
@@ -300,6 +311,123 @@ def generate_pdf_bytes(report: StrategyReport) -> bytes | None:
     except (ImportError, OSError) as e:
         logger.warning(f"PDF non generabile: {e}")
         return None
+
+
+# ============================================================
+# Impatto view Black-Litterman
+# ============================================================
+
+@dataclass
+class ViewImpact:
+    """Confronto equilibrio vs posterior con view."""
+    tickers: list[str]
+    mu_equilibrium: dict[str, float]  # ticker -> mu senza view
+    mu_posterior: dict[str, float]    # ticker -> mu con view
+    mu_delta: dict[str, float]        # ticker -> differenza (posterior - equilibrium)
+    w_equilibrium: dict[str, float]   # allocazione senza view
+    w_posterior: dict[str, float]     # allocazione con view
+    w_delta: dict[str, float]         # differenza pesi
+    validation_errors: list[str]
+    summary: list[str]                # descrizione testuale dell'effetto
+
+
+def build_view_impact(
+    returns: pd.DataFrame,
+    views: list[dict],
+    profile_name: str = "bilanciato",
+    horizon_years: int = 5,
+    within_class_weighting: str = "equal",
+) -> ViewImpact:
+    """Calcola l'impatto delle view su mu e allocazione.
+
+    Confronta il portafoglio BL senza view (equilibrio) con quello
+    che include le view fornite, a parita' di profilo e covarianza.
+    """
+    ac_map = load_universe()["asset_class"].to_dict()
+    profiles = load_profiles()
+    profile = profiles[profile_name]
+
+    # Stima covarianza (comune a entrambi i calcoli)
+    params_base = estimate_parameters(
+        returns, mean_method="bayes_stein", cov_method="ledoit_wolf",
+    )
+    cov = params_base.cov
+    tickers = list(params_base.tickers)
+
+    # Filtra a core (no crypto)
+    core_tickers = [t for t in tickers if ac_map.get(t) != "crypto"]
+    core_idx = [tickers.index(t) for t in core_tickers]
+    core_cov = cov[np.ix_(core_idx, core_idx)]
+
+    # Validazione view
+    errors = validate_views(views, core_tickers)
+
+    # BL config base (senza view)
+    bl_base_config = load_bl_config()
+    bl_base_config.views = []
+    bl_base_config.within_class_weighting = within_class_weighting
+    bl_eq = run_black_litterman(core_cov, core_tickers, ac_map, bl_base_config)
+
+    # BL config con view
+    bl_views_config = load_bl_config()
+    bl_views_config.views = views
+    bl_views_config.within_class_weighting = within_class_weighting
+    bl_views = run_black_litterman(core_cov, core_tickers, ac_map, bl_views_config)
+
+    # Mu comparison
+    mu_eq = {t: float(bl_eq.mu_bl[i]) for i, t in enumerate(core_tickers)}
+    mu_post = {t: float(bl_views.mu_bl[i]) for i, t in enumerate(core_tickers)}
+    mu_delta = {t: mu_post[t] - mu_eq[t] for t in core_tickers}
+
+    # Allocazione con i due mu
+    from .estimation import ParameterEstimate
+    params_eq = ParameterEstimate(
+        mu=bl_eq.mu_bl, cov=core_cov, tickers=core_tickers,
+        metadata={},
+    )
+    params_post = ParameterEstimate(
+        mu=bl_views.mu_bl, cov=core_cov, tickers=core_tickers,
+        metadata={},
+    )
+
+    pr_eq = build_portfolio_for_profile(
+        profile, params_eq, horizon_years=horizon_years, asset_class_map=ac_map,
+    )
+    pr_post = build_portfolio_for_profile(
+        profile, params_post, horizon_years=horizon_years, asset_class_map=ac_map,
+    )
+
+    w_eq = pr_eq.portfolio.weights
+    w_post = pr_post.portfolio.weights
+    w_delta = {t: w_post.get(t, 0) - w_eq.get(t, 0) for t in core_tickers}
+
+    # Summary testuale
+    summary = []
+    for t in core_tickers:
+        d = mu_delta[t]
+        if abs(d) > 0.005:  # >0.5% change
+            direction = "+" if d > 0 else ""
+            summary.append(f"{t}: mu {direction}{d:.2%}")
+    if not summary:
+        summary.append("Le view non modificano significativamente i rendimenti attesi.")
+
+    top_w_changes = sorted(w_delta.items(), key=lambda x: abs(x[1]), reverse=True)[:3]
+    for t, d in top_w_changes:
+        if abs(d) > 0.005:
+            direction = "+" if d > 0 else ""
+            summary.append(f"Peso {t}: {direction}{d:.2%}")
+
+    return ViewImpact(
+        tickers=core_tickers,
+        mu_equilibrium=mu_eq,
+        mu_posterior=mu_post,
+        mu_delta=mu_delta,
+        w_equilibrium=w_eq,
+        w_posterior=w_post,
+        w_delta=w_delta,
+        validation_errors=errors,
+        summary=summary,
+    )
 
 
 # ============================================================
